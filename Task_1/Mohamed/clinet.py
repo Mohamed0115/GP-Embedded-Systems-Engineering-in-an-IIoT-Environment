@@ -57,6 +57,6 @@ try:
         time.sleep(1)  
 except KeyboardInterrupt:
     print("\n Done")
-    client.loop_stop()
-    client.disconnect()
+    client.loop_stop() # end thread (what for recive + check conneting)
+    client.disconnect() # 
     print("good")
