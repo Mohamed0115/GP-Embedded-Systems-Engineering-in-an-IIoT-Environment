@@ -52,7 +52,7 @@ threading.Thread(target=publisher_loop, daemon=True).start()
 #Thread 3
 try:
     while True:
-        time.sleep(1)  # خلي البرنامج كله شغال إلى ما لا نهاية
+        time.sleep(1)  # خلي البرنامج كله كله شغال إلى ما لا نهاية
 except KeyboardInterrupt:
     print("\n Done")
     client.loop_stop()
