@@ -14,27 +14,29 @@ TOPIC_SUBSCRIBE = "/mido/control"
 CLIENT_ID = "Mido_PC_Publisher_Subscriber"  
 
 #2.Fun
-def on_connect(client, userdata, flags, rc, properties=None):  #
+def on_connect(client, userdata, flags, rc, properties=None):  # 🔴most used
     print("✅ Connected to the broker!")
-    # نشترك في التوبيك اللي هنستقبل منه
+    # subsribe to topic and take sensors' read
     client.subscribe(TOPIC_SUBSCRIBE)
     print(f"✅ subscribed to topic: {TOPIC_SUBSCRIBE}")
     print(f"✅ send 'Hello World' every 5seconds on {TOPIC_PUBLISH}\n")
 
 def on_message(client, userdata, msg):
-    # دي بتتنفذ كل ما يجيلك رسالة على التوبيك اللي مشترك فيه
+    # if there thing to recive.
     print(f"🟢 get a message on  {msg.topic} → {msg.payload.decode()}")
 
 #3.client-config
-client = mqtt.Client(client_id=CLIENT_ID, protocol=mqtt.MQTTv5)
+client = mqtt.Client(client_id=CLIENT_ID, protocol=mqtt.MQTTv5) # create with id & version
 client.on_connect = on_connect
 client.on_message = on_message
 
 print("conneting ....")
-client.connect(BROKER, PORT)   #async
+client.connect(BROKER, PORT)   #async  .....then call on_connect 
 
-# Thread 1
+# Thread 2 ...subscribe +.....connect
 client.loop_start()
+
+#client.loop() after each line +... it stop the code
 
 
 def publisher_loop():
@@ -44,15 +46,15 @@ def publisher_loop():
         print(f"🔵I sent: {message} → {TOPIC_PUBLISH}")
         time.sleep(5) 
 
-#Thread 2
-threading.Thread(target=publisher_loop, daemon=True).start()
+#Thread 3 ....publish
+threading.Thread(target=publisher_loop, daemon=True).start()  #cotain... follwer ... run 
 
 
 # to Stop 
-#Thread 3
+#Thread ..
 try:
     while True:
-        time.sleep(1)  # خلي البرنامج كله كله شغال إلى ما لا نهاية
+        time.sleep(1)  
 except KeyboardInterrupt:
     print("\n Done")
     client.loop_stop()
