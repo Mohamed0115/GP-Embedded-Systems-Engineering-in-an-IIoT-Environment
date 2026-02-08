@@ -7,11 +7,11 @@ import websockets
 import json  #tranform to dic
 
 PORT = 8765  
-connected_clients = set()   
+# connected_clients = set()   
 
 async def handler(websocket):  #when there is a new connection
     print(f"✅ Client connected from {websocket.remote_address}")
-    connected_clients.add(websocket)
+    # connected_clients.add(websocket)
     
     try:
         async for message in websocket:   #when recive any message [listener]

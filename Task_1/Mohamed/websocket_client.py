@@ -2,15 +2,15 @@
 import asyncio
 import websockets
 import json  
-import signal #🔴
+import signal #🔴 to read ctrl +c
 
-URI = "ws://localhost:8765"  # Server address 🔴
+URI = "ws://localhost:8765"  # Server address 🔴 127.0.0.1 automatic mapping
 CLIENT_ID = "Mido_PC_Client"  # For identification 
 
 async def send_loop(websocket):
     while True:
         message = {"topic": "/mido/hello", "msg": "Hello World"}
-        await websocket.send(json.dumps(message)) #🔴
+        await websocket.send(json.dumps(message)) #🔴 dic to string (JSON)
         print(f"🔵 Sent: {message['msg']} → {message['topic']}")
         await asyncio.sleep(5)  # Every 5 seconds
 
