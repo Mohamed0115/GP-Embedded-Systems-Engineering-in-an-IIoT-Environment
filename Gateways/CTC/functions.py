@@ -13,7 +13,10 @@ login = {
 
 async def send(ws, commands):
     await ws.send(json.dumps(commands))
-    print("Request sent:", commands)
+
+    # TODO: use json.dumps to print the commands in a pretty format
+    # there is no need to print the commands
+    print("Request sent:", json.dumps(commands, indent=4))
 
 
 # Function to Receive
@@ -27,7 +30,9 @@ async def conn(url):
     ws = await websockets.connect(url)
     print("Connected")
     await send(ws, login)
-    print("your_Login  :", login)
+
+    # no need to print the login command
+    # print("your_Login  :", login)
     login_result = await receive(ws)
-    print("Login Result:", login_result)
+    # print("Login Result:", login_result)
     return ws

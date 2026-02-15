@@ -115,6 +115,8 @@ async def get_dynamic_battery_records(
 ):
     data = {"Max": max_records}
     if serials is not None:
+
+        # TODO: the api expects "Serial" not "Serials" it crash the code
         data["Serials"] = serials
     if start:
         data["Start"] = start

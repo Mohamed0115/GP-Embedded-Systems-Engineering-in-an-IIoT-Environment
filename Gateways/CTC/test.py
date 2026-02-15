@@ -1,5 +1,6 @@
 # this file just for test
 
+import json
 from functions import conn
 import asyncio
 from commands import (
@@ -22,7 +23,9 @@ async def main():
     try:
         ws = await conn("ws://192.168.13.2:5000")
         result = await get_dynamic_battery_records(ws)
-        print(result)
+
+        # TODO: use json.dumps to print the result in a pretty format
+        print(json.dumps(result, indent=4))
 
     except websockets.exceptions.ConnectionClosedError as e:
         print("Connection closed unexpectedly")
