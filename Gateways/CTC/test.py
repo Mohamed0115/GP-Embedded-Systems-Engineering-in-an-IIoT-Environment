@@ -2,7 +2,18 @@
 
 from functions import conn
 import asyncio
-from commands import get_dynamic_sensors,subscribe_to_changes,unsubscribe_from_changes,get_connected_dynamic_sensors,take_dynamic_vibration_reading,take_dynamic_temperature_reading,take_dynamic_battery_reading,get_dynamic_vibration_records,get_dynamic_temperature_records,get_dynamic_battery_records
+from commands import (
+    get_dynamic_sensors,
+    subscribe_to_changes,
+    unsubscribe_from_changes,
+    get_connected_dynamic_sensors,
+    take_dynamic_vibration_reading,
+    take_dynamic_temperature_reading,
+    take_dynamic_battery_reading,
+    get_dynamic_vibration_records,
+    get_dynamic_temperature_records,
+    get_dynamic_battery_records,
+)
 import websockets
 
 
@@ -22,6 +33,7 @@ async def main():
         if ws:
             await ws.close()
             print("Connection closed cleanly")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
