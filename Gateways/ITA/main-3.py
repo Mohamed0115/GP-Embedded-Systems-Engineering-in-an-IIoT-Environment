@@ -16,16 +16,19 @@ async def main():
     used_parameters = parameters()
     try:
         reader, writer = await connect(used_ip, port)
-        await excute_command(reader, writer, "FV?")
-        await excute_command(reader, writer, "DS?")
-        await excute_command(reader, writer, used_parameters["commands"])
-        while True:
-            x = await excute_command(reader, writer, "AQ")
-            print(x)
-            data = await excute_command(reader, writer, "BD?", used_parameters["TL"])
-            csvf(data)
-            await take_A_decision(reader, writer)
-            await asyncio.sleep(intetvals_second)
+        x = await excute_command(reader, writer, "FV?")
+        print(x)
+        x = await excute_command(reader, writer, "DS?")
+        print(x)
+        x = await excute_command(reader, writer, used_parameters["commands"])
+        print(x)
+        # while True:
+        #     x = await excute_command(reader, writer, "AQ")
+        #     print(x)
+        #     data = await excute_command(reader, writer, "BD?", used_parameters["TL"])
+        #     csvf(data)
+        #     await take_A_decision(reader, writer)
+        await asyncio.sleep(intetvals_second)
     except KeyboardInterrupt:
         print("( ctrl+c ) stops the code.")
     except Exception as e:
