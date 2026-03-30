@@ -9,7 +9,7 @@ async def main():
     reader = None
     writer = None
 
-
+#logs package
     used_ip = ip() or '192.168.13.10'
     used_parameters = parameters()
     try:
@@ -20,10 +20,13 @@ async def main():
         print(y)
         z= await excute_command(reader,writer,used_parameters['commands'])
         print(z)
-        xx=await excute_command(reader,writer,'AQ')
-        print(xx)
-        data =await excute_data_command(reader,writer,'BD?',used_parameters['TL'])
-        csvf(data)
+        for i in range(3):
+            zz= await excute_command(reader,writer,used_parameters[f"CH_{i+1}"])
+            print(zz)
+            xx=await excute_command(reader,writer,'AQ')
+            print(xx)
+            data =await excute_data_command(reader,writer,'BD?',used_parameters['TL'])
+            csvf(data,i+1)
     except KeyboardInterrupt:
         print("( ctrl+c ) stops the code.")
     except Exception as e:

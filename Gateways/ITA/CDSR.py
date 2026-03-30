@@ -50,8 +50,6 @@ async def receive_data(reader,command,TL):
             
             if len(data) >= data_len:
                 break
-            if b'\r' in data:
-                break
     except asyncio.TimeoutError:
         raise ValueError("Receive timeout")
     except Exception as e:

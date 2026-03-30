@@ -29,9 +29,9 @@ async def to_of_input(Question,timeout =5):
         print("\nTimeout - continuing...")
         return ''
 
-def csvf(data_resp):
+def csvf(data_resp,axis):
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    filename = f'ita_data_{timestamp}.csv'
+    filename = f'ita_data_{timestamp}-{axis}.csv'
     with open(filename, 'w', newline='') as csvfile:
         csv_writer = csv.writer(csvfile)
         csv_writer.writerow(['Sample Index', 'Raw Value'])  # Header
