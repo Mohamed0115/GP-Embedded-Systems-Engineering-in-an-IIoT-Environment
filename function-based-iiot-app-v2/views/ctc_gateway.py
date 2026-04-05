@@ -20,17 +20,29 @@ def ctc_gateway_view():
         if not getattr(st.session_state, 'ctc_subscribed', False):
             if c1.button("Subscribe Telemetry", use_container_width=True):
                 if getattr(st.session_state, 'ctc_connected', False):
-                    ctc.subscribe()
-                    add_to_history("CTC", "Subscribe", "Success")
-                    st.success("Subscribed to telemetry topics")
-                    st.rerun()
+                    with st.spinner("Subscribing to CTC..."):
+                        success, msg = ctc.subscribe()
+                    if success:
+                        add_to_history("CTC", "Subscribe", "Success")
+                        st.success(msg)
+                        import time; time.sleep(0.5)
+                        st.rerun()
+                    else:
+                        add_to_history("CTC", "Subscribe", "Failed")
+                        st.error(msg)
                 else:
                     st.error("Connect first.")
         else:
             if c1.button("Unsubscribe", use_container_width=True):
-                ctc.unsubscribe()
-                add_to_history("CTC", "Unsubscribe", "Success")
-                st.rerun()
+                with st.spinner("Unsubscribing..."):
+                    success, msg = ctc.unsubscribe()
+                if success:
+                    add_to_history("CTC", "Unsubscribe", "Success")
+                    import time; time.sleep(0.5)
+                    st.rerun()
+                else:
+                    add_to_history("CTC", "Unsubscribe", "Failed")
+                    st.error(msg)
             st.success("Currently Subscribed to Telemetry")
                 
     with tab2:
@@ -38,11 +50,27 @@ def ctc_gateway_view():
         if not getattr(st.session_state, 'ctc_subscribed', False):
             st.info("Subscribe to at least one sensor to view data.")
         else:
+            with st.expander("🔍 Find Connected Device Serials", expanded=False):
+                if st.button("Query Connected Serials"):
+                    try:
+                        serials = ctc.get_connected_serials()
+                        st.json(serials)
+                    except Exception as e:
+                        st.error(f"Could not query serials: {e}")
+                        
             c_actions = st.columns(2)
+            ctc_serial_input = st.text_input("Device Serial", value="12345")
             if c_actions[0].button("Poll Latest Data"):
-                with st.spinner("Polling CTC data..."):
-                    usr_data["last_ctc_data"] = ctc.get_current_data()
-                add_to_history("CTC", "Poll Data", "Success")
+                with st.spinner(f"Waking up sensor {ctc_serial_input} and pulling 6400 samples. This can physically take up to 30 seconds..."):
+                    try:
+                        usr_data["last_ctc_data"] = ctc.get_current_data(serial=ctc_serial_input)
+                        add_to_history("CTC", "Poll Data", "Success")
+                    except asyncio.TimeoutError:
+                        st.error("Hardware timeout: The sensor took longer than 30 seconds to wake up and transmit the data.")
+                        add_to_history("CTC", "Poll Data", "Timeout")
+                    except Exception as e:
+                        st.error(f"Failed to poll CTC data: {str(e) or type(e).__name__}")
+                        add_to_history("CTC", "Poll Data", "Failed")
                 
             if c_actions[1].button("📥 Download Report (CSV)"):
                 msg = ctc.csvf()

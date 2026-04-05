@@ -2,7 +2,7 @@ import streamlit as st
 import asyncio
 import sys, os
 
-SIMULATION_MODE = False
+SIMULATION_MODE = True
 
 if SIMULATION_MODE:
     from Gateways_Sim.ITA.CDSR import connect as ita_conn, disconnect as ita_disconn
@@ -95,22 +95,89 @@ class CTCWrapper:
         if 'ctc_subscribed' not in st.session_state: st.session_state.ctc_subscribed = False
     def ip(self): return getattr(st.session_state, 'ctc_ip', "192.168.1.200")
     def connect(self, ip):
-        st.session_state.ctc_connected = True
-        st.session_state.ctc_ip = ip
+        async def _test_conn():
+            try:
+                ws = await asyncio.wait_for(ctc_conn(f"ws://{ip}:5000"), timeout=3.0)
+                await ws.close()
+                return True, "Connected successfully"
+            except Exception as e:
+                return False, str(e)
+        
+        success, msg = asyncio.run(_test_conn())
+        if success:
+            st.session_state.ctc_connected = True
+            st.session_state.ctc_ip = ip
+            return True, msg
+        else:
+            st.session_state.ctc_connected = False
+            return False, f"Connection failed: {msg}"
+
     def disconnect(self):
         st.session_state.ctc_connected = False
+        
     def subscribe(self):
-        st.session_state.ctc_subscribed = True
-    def unsubscribe(self):
-        st.session_state.ctc_subscribed = False
-    def get_current_data(self):
         async def _run():
-            ws = await ctc_conn(f"ws://{self.ip()}:5000")
-            res = await take_dynamic_vibration_reading(ws, 12345)
-            if "Data" in res and len(res["Data"]) > 0:
-                vib = res["Data"][0].get("Vibration", 0.0)
-                return {"Serial": "12345", "timestamp": "Now", "X": [vib]*50, "Y": [vib*.5]*50, "Z": [vib*.2]*50}
-            return None
+            from CTC.commands import subscribe_to_changes
+            ws = await asyncio.wait_for(ctc_conn(f"ws://{self.ip()}:5000"), timeout=3.0)
+            res = await asyncio.wait_for(subscribe_to_changes(ws), timeout=1.5)
+            await ws.close()
+            return res
+        try:
+            asyncio.run(_run())
+            st.session_state.ctc_subscribed = True
+            return True, "Subscribed successfully"
+        except asyncio.TimeoutError:
+            st.session_state.ctc_subscribed = True
+            return True, "Subscribed successfully (No ACK from server)"
+        except Exception as e:
+            return False, f"Subscribe failed: {str(e) or type(e).__name__}"
+        
+    def unsubscribe(self):
+        async def _run():
+            from CTC.commands import unsubscribe_from_changes
+            ws = await asyncio.wait_for(ctc_conn(f"ws://{self.ip()}:5000"), timeout=3.0)
+            res = await asyncio.wait_for(unsubscribe_from_changes(ws), timeout=1.5)
+            await ws.close()
+            return res
+        try:
+            asyncio.run(_run())
+            st.session_state.ctc_subscribed = False
+            return True, "Unsubscribed successfully"
+        except asyncio.TimeoutError:
+            st.session_state.ctc_subscribed = False
+            return True, "Unsubscribed successfully (No ACK from server)"
+        except Exception as e:
+            return False, f"Unsubscribe failed: {str(e) or type(e).__name__}"
+        
+    def get_connected_serials(self):
+        async def _run():
+            from CTC.commands import get_connected_dynamic_sensors
+            ws = await asyncio.wait_for(ctc_conn(f"ws://{self.ip()}:5000"), timeout=3.0)
+            res = await asyncio.wait_for(get_connected_dynamic_sensors(ws), timeout=3.0)
+            await ws.close()
+            return res
+        return asyncio.run(_run())
+
+    def get_current_data(self, serial="12345"):
+        if not str(serial).strip().isdigit():
+            raise ValueError(f"Serial number must be entirely numeric. You accidentally entered: '{serial}'")
+            
+        async def _run():
+            from CTC.commands import get_dynamic_vibration_records
+            ws = await asyncio.wait_for(ctc_conn(f"ws://{self.ip()}:5000"), timeout=3.0)
+            res = await asyncio.wait_for(get_dynamic_vibration_records(ws, serials=[int(serial)], max_records=1), timeout=5.0)
+            await ws.close()
+            
+            if isinstance(res, dict) and "Data" in res:
+                data_val = res["Data"]
+                if isinstance(data_val, list) and len(data_val) > 0:
+                    item = data_val[0]
+                    if isinstance(item, dict):
+                        vib = item.get("Vibration", 0.0)
+                        return {"Serial": serial, "timestamp": "Now", "X": [vib]*50, "Y": [vib]*50, "Z": [vib]*50}
+            
+            raise ValueError(f"Gateway returned unexpected format: {res}")
+            
         return asyncio.run(_run())
     def csvf(self): return "Exported CSV"
 

@@ -71,11 +71,19 @@ def dashboard_view():
             """.format(ctc.ip(), "#4CAF50" if ctc_connected else "#ef5350", "Connected 🟢" if ctc_connected else "Disconnected 🔴"), unsafe_allow_html=True)
             st.markdown("<br>", unsafe_allow_html=True)
             if not ctc_connected:
+                new_ctc_ip = st.text_input("CTC IP Address", value=ctc.ip(), key="ctc_ip_input")
+                
                 if st.button("Connect CTC", key="conn_ctc"):
                     with st.spinner("Connecting to CTC Connect..."):
-                        ctc.connect(getattr(st.session_state, 'ctc_ip', None) or "192.168.1.200")
-                        add_to_history("CTC Connect", "Connect", "Success")
-                        st.rerun()
+                        success, msg = ctc.connect(new_ctc_ip)
+                        if success:
+                            add_to_history("CTC Connect", "Connect", "Success")
+                            st.success(msg)
+                            import time; time.sleep(0.5)
+                            st.rerun()
+                        else:
+                            add_to_history("CTC Connect", "Connect", "Failed")
+                            st.error(msg)
             else:
                 if st.button("Disconnect CTC", key="disconn_ctc"):
                     ctc.disconnect()
