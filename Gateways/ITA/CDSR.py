@@ -49,8 +49,8 @@ async def receive_data(reader,command,TL):
             # If so, exit the wait loop early instead of blocking.
             if b'ER' in data[:20] or b'NA' in data[:20]:
                 break
-                
-            chunk = await asyncio.wait_for( reader.read(9000) ,timeout= 3.0)
+            ##heere i added a new part    i added 0 to 9000 to 90000
+            chunk = await asyncio.wait_for( reader.read(90000) ,timeout= 3.0)
             if not chunk:
                 break
             data +=chunk

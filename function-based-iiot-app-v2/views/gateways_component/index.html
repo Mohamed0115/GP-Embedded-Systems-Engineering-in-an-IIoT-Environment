@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html class="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rimap Sensors Table Component</title>
+  <!-- Tailwind CSS Play CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              200: '#bbf7d0',
+              300: '#86efac',
+              400: '#4ade80',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+              950: '#052e16',
+              DEFAULT: '#22c55e'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Transparent background + system font */
+    body {
+      background-color: transparent !important;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+    }
+    /* Toggle slider transition */
+    .toggle-slider {
+      transition: transform 0.2s ease-in-out, background-color 0.2s ease-in-out;
+    }
+    /* ===== Change 3: Smooth collapse animation for Device View row ===== */
+    .device-view-panel {
+      max-height: 0;
+      overflow: hidden;
+      opacity: 0;
+      transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+                  opacity 0.4s ease-in-out,
+                  padding 0.4s ease-in-out;
+    }
+    .device-view-panel.open {
+      max-height: 500px;
+      opacity: 1;
+    }
+    /* ===== Change 2: Vendor card hover animations ===== */
+    .vendor-card {
+      transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+      cursor: pointer;
+    }
+    .vendor-card:hover {
+      transform: translateY(-6px) scale(1.02);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.15);
+    }
+    .vendor-card-ita:hover {
+      border-color: #16a34a;
+      box-shadow: 0 20px 40px rgba(22,163,74,0.2);
+    }
+    .vendor-card-ctc:hover {
+      border-color: #2563eb;
+      box-shadow: 0 20px 40px rgba(37,99,235,0.2);
+    }
+    /* Pulse animation on the inner circle */
+    .vendor-card:hover .vendor-pulse {
+      animation: pulse-ring 1.5s ease-in-out infinite;
+    }
+    @keyframes pulse-ring {
+      0% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.15); opacity: 0.7; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+  </style>
+</head>
+<body class="bg-transparent text-gray-900 dark:text-gray-100 antialiased p-1">
+
+  <!-- Main Component Container -->
+  <div id="app" class="w-full">
+    <!-- Header Section (Sensor Configuration title and logs/add buttons) -->
+    <div class="flex flex-row justify-between items-center border-gray-200 dark:border-gray-700 py-3.5 border-b mb-6">
+      <div class="flex flex-row items-center space-x-3">
+        <!-- CPU / Sensor Icon -->
+        <svg class="size-6 text-gray-700 dark:text-gray-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-7.5-18v1.5m0 15V21M12 6.75a5.25 5.25 0 1 0 0 10.5 5.25 5.25 0 0 0 0-10.5Z" stroke-linecap="round" stroke-linejoin="round"></path>
+          <circle cx="12" cy="12" r="2.5" stroke-linecap="round" stroke-linejoin="round"></circle>
+        </svg>
+        <p class="font-medium text-md text-gray-900 dark:text-gray-100">
+          Sensor Configuration
+        </p>
+      </div>
+      <div class="flex flex-row space-x-2">
+        <!-- Logs Button -->
+        <button onclick="triggerAction('logs', '', 0)" class="focus:outline-none focus-visible:outline-0 disabled:cursor-not-allowed disabled:opacity-75 aria-disabled:cursor-not-allowed aria-disabled:opacity-75 flex-shrink-0 font-medium rounded-md text-sm gap-x-1.5 px-2.5 py-1.5 ring-1 ring-inset ring-gray-300 dark:ring-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-500 inline-flex items-center bg-white dark:bg-gray-900 shadow-sm" type="button">
+          <!-- command-line icon -->
+          <svg class="flex-shrink-0 h-5 w-5 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
+          </svg>
+          Logs
+        </button>
+        <!-- Add Gateway Button -->
+        <button onclick="triggerAction('add_gw', '', 0)" class="focus:outline-none disabled:cursor-not-allowed disabled:opacity-75 aria-disabled:cursor-not-allowed aria-disabled:opacity-75 flex-shrink-0 font-medium rounded-md text-sm gap-x-1.5 px-2.5 py-1.5 shadow-sm text-white bg-primary-500 hover:bg-primary-600 disabled:bg-primary-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 inline-flex items-center" type="button">
+          <!-- plus icon -->
+          <svg class="flex-shrink-0 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          <span class="">Add Gateway</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Gateways List Container -->
+    <div id="gateways-list" class="space-y-6">
+      <div class="text-center py-8 text-gray-500">Loading gateways...</div>
+    </div>
+  </div>
+
+  <script>
+    // ===== Streamlit Communication Protocol =====
+    const sendMessage = (type, data = {}) => {
+      window.parent.postMessage({ isStreamlitMessage: true, type, ...data }, "*");
+    };
+
+    // Every action includes a _ts timestamp so repeat clicks produce unique events
+    const triggerAction = (action, gwIp, ch) => {
+      sendMessage("streamlit:setComponentValue", { value: { action, gw_ip: gwIp, ch, _ts: Date.now() } });
+    };
+
+    // Listen to messages from Streamlit
+    window.addEventListener("message", (event) => {
+      const msg = event.data;
+      if (msg.type === "streamlit:render") {
+        // Pass in ita_image_b64 for the Device View panel (Change 3)
+        renderGateways(msg.args.gateways, msg.args.configured_channels, msg.args.ita_image_b64 || "");
+      }
+    });
+
+    // Notify Streamlit that component is loaded and ready
+    sendMessage("streamlit:componentReady", { apiVersion: 1 });
+
+    // Auto height observation — keeps iframe sized to content
+    const resizeObserver = new ResizeObserver(() => {
+      const height = document.documentElement.scrollHeight || document.body.scrollHeight;
+      sendMessage("streamlit:setFrameHeight", { height: height + 10 });
+    });
+    resizeObserver.observe(document.body);
+
+    // ===== Track which gateways have Device View toggled open =====
+    const deviceViewState = {};
+
+    // ===== Toggle the Device View panel open/closed with animation =====
+    function toggleDeviceView(gwIp) {
+      deviceViewState[gwIp] = !deviceViewState[gwIp];
+      const panel = document.getElementById(`device-view-${gwIp}`);
+      if (panel) {
+        if (deviceViewState[gwIp]) {
+          panel.classList.add('open');
+        } else {
+          panel.classList.remove('open');
+        }
+      }
+      // Update the resize observer after animation
+      setTimeout(() => {
+        const height = document.documentElement.scrollHeight || document.body.scrollHeight;
+        sendMessage("streamlit:setFrameHeight", { height: height + 10 });
+      }, 600);
+    }
+
+    // ===== Main render function =====
+    function renderGateways(gateways, configuredChannels, itaImageB64) {
+      const listContainer = document.getElementById("gateways-list");
+
+      // ===== Change 2: Show vendor cards when no gateways exist =====
+      if (!gateways || gateways.length === 0) {
+        listContainer.innerHTML = `
+          <div class="flex flex-col items-center py-12">
+            <p class="text-gray-400 text-sm mb-8">No gateways configured. Select a vendor to get started.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-2xl px-4">
+              <!-- ITA Card (Green) -->
+              <div onclick="triggerAction('add_gw_ita', '', 0)"
+                   class="vendor-card vendor-card-ita relative flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-green-200 dark:border-green-800 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 shadow-lg">
+                <!-- Green circle with antenna icon -->
+                <div class="vendor-pulse w-20 h-20 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center mb-5 shadow-lg shadow-green-500/30">
+                  <svg class="size-10 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v12M12 4l-3 3M12 4l3 3" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8 8a5.5 5.5 0 0 0 0 8" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M16 8a5.5 5.5 0 0 1 0 8" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 5a10 10 0 0 0 0 14" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 5a10 10 0 0 1 0 14" />
+                    <rect x="10" y="16" width="4" height="4" rx="0.5" fill="currentColor" stroke="none" />
+                  </svg>
+                </div>
+                <h3 class="text-lg font-bold text-green-800 dark:text-green-300">Icon Research ITA</h3>
+                <p class="text-xs text-green-600 dark:text-green-400 mt-1">High-precision DAQ · 16 Channels</p>
+              </div>
+              <!-- CTC Card (Blue) -->
+              <div onclick="triggerAction('add_gw_ctc', '', 0)"
+                   class="vendor-card vendor-card-ctc relative flex flex-col items-center justify-center p-8 rounded-2xl border-2 border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 shadow-lg">
+                <!-- Blue circle with generic sensor icon -->
+                <div class="vendor-pulse w-20 h-20 rounded-full bg-gradient-to-br from-blue-400 to-indigo-600 flex items-center justify-center mb-5 shadow-lg shadow-blue-500/30">
+                  <svg class="size-10 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.348 14.652a3.75 3.75 0 010-5.304m5.304 0a3.75 3.75 0 010 5.304m-7.425 2.121a6.75 6.75 0 010-9.546m9.546 0a6.75 6.75 0 010 9.546M5.106 18.894c-3.808-3.807-3.808-9.98 0-13.788m13.788 0c3.808 3.807 3.808 9.98 0 13.788M12 12h.008v.008H12V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                  </svg>
+                </div>
+                <h3 class="text-lg font-bold text-blue-800 dark:text-blue-300">CTC Connect</h3>
+                <p class="text-xs text-blue-600 dark:text-blue-400 mt-1">Coming Soon</p>
+                <!-- "Coming Soon" overlay badge -->
+                <span class="absolute top-3 right-3 text-[10px] bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded-full font-semibold">SOON</span>
+              </div>
+            </div>
+          </div>`;
+        return;
+      }
+
+      // ===== Build gateway cards when gateways exist =====
+      let html = "";
+      gateways.forEach((gw, gIdx) => {
+        const isOnline = gw.status === "online";
+        // Change 1: All ITA gateways use green
+        const serverIconColor = "text-green-600 dark:text-green-500";
+        const statusBadgeClass = isOnline
+          ? "bg-green-50 text-green-700 ring-green-600/10 dark:bg-green-400/10 dark:text-green-400 dark:ring-green-400/20"
+          : "bg-gray-50 text-gray-500 ring-gray-500/10 dark:bg-gray-400/10 dark:text-gray-400 dark:ring-gray-400/20";
+        
+        // ===== Change 3: Device View toggle state =====
+        const isDeviceOpen = !!deviceViewState[gw.ip];
+        const dvBg = isDeviceOpen ? "bg-primary-500" : "bg-gray-200 dark:bg-gray-700";
+        const dvTranslate = isDeviceOpen ? "translate-x-3" : "translate-x-0";
+        const dvBadge = isDeviceOpen
+          ? "bg-green-50 text-green-700 ring-green-600/10 dark:bg-green-400/10 dark:text-green-400 dark:ring-green-400/20"
+          : "bg-gray-50 text-gray-500 ring-gray-500/10 dark:bg-gray-400/10 dark:text-gray-400 dark:ring-gray-400/20";
+
+        // Build channel rows
+        let rowsHtml = "";
+        const channelsCount = gw.channels || 16;
+        for (let ch = 1; ch <= channelsCount; ch++) {
+          const chKey = `${gw.ip}:${ch}`;
+          const config = configuredChannels[chKey];
+          
+          let locCell = `<span class="text-sm text-gray-400 italic">Not configured</span>`;
+          let measCell = `<span class="text-sm text-gray-400 italic">Not configured</span>`;
+          let sensCell = `<span class="text-sm text-gray-400 italic">Not set</span>`;
+          let statusCell = `
+            <span class="inline-flex items-center font-medium rounded-md text-xs px-1.5 py-0.5 gap-0.5 bg-gray-50 dark:bg-gray-400/10 text-gray-500 dark:text-gray-400 ring-1 ring-inset ring-gray-500/10 dark:ring-gray-400/20">
+              inactive
+            </span>`;
+          let readingCell = `<span class="text-sm text-gray-400">Never</span>`;
+          
+          let actionButtons = `
+            <button onclick="triggerAction('config', '${gw.ip}', ${ch})" class="focus:outline-none focus-visible:outline-0 disabled:cursor-not-allowed disabled:opacity-75 flex-shrink-0 font-medium rounded-md text-xs gap-x-1.5 p-1.5 text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 focus-visible:ring-inset focus-visible:ring-2 focus-visible:ring-primary-500 inline-flex items-center" type="button" title="Configure Channel">
+              <svg class="flex-shrink-0 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.43l-1.003.828c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.43l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+              </svg>
+            </button>`;
+
+          if (config && config.configured) {
+            locCell = `<span class="text-sm font-medium text-gray-700 dark:text-gray-300">Production Floor A</span>`;
+            measCell = `<span class="text-sm font-medium text-gray-800 dark:text-gray-200">${config.type}</span>`;
+            sensCell = `<span class="text-sm font-mono text-gray-700 dark:text-gray-300">${config.sensitivity} ${config.unit}</span>`;
+            statusCell = `
+              <span class="inline-flex items-center font-medium rounded-md text-xs px-1.5 py-0.5 gap-0.5 bg-green-50 dark:bg-green-400/10 text-green-700 dark:text-green-400 ring-1 ring-inset ring-green-600/10 dark:ring-green-400/20">
+                active
+              </span>`;
+            
+            if (config.last_val && config.last_val !== "Never") {
+              readingCell = `
+                <div class="flex flex-col text-left">
+                  <span class="text-sm text-gray-800 dark:text-gray-200 font-semibold">${config.last_val} ${config.last_unit || ''}</span>
+                  <span class="text-[10px] text-gray-400">at ${config.last_time || ''}</span>
+                </div>`;
+            } else {
+              readingCell = `<span class="text-sm text-gray-400">Never</span>`;
+            }
+
+            actionButtons = `
+              <div class="flex items-center space-x-1 justify-end">
+                <button onclick="triggerAction('read', '${gw.ip}', ${ch})" class="focus:outline-none focus-visible:outline-0 disabled:cursor-not-allowed disabled:opacity-75 flex-shrink-0 font-medium rounded-md text-xs gap-x-1.5 p-1.5 text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 focus-visible:ring-inset focus-visible:ring-2 focus-visible:ring-primary-500 inline-flex items-center" type="button" title="Take Reading">
+                  <svg class="flex-shrink-0 h-4 w-4 text-primary-500 dark:text-primary-400 hover:text-primary-600" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z"/>
+                  </svg>
+                </button>
+                <button onclick="triggerAction('config', '${gw.ip}', ${ch})" class="focus:outline-none focus-visible:outline-0 disabled:cursor-not-allowed disabled:opacity-75 flex-shrink-0 font-medium rounded-md text-xs gap-x-1.5 p-1.5 text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 focus-visible:ring-inset focus-visible:ring-2 focus-visible:ring-primary-500 inline-flex items-center" type="button" title="Configure Channel">
+                  <svg class="flex-shrink-0 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.43l-1.003.828c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.43l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                  </svg>
+                </button>
+              </div>`;
+          }
+
+          rowsHtml += `
+            <tr class="hover:bg-gray-50/70 dark:hover:bg-gray-800/40 border-b border-gray-100 dark:border-gray-800">
+              <td class="whitespace-nowrap px-4 py-3.5 text-gray-700 dark:text-gray-300 text-sm">
+                <div class="flex items-center space-x-2">
+                  <!-- channel sensor pin icon -->
+                  <svg class="size-4 text-green-600 dark:text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 2a4 4 0 0 1 4 4c0 3-4 6-4 6s-4-3-4-6a4 4 0 0 1 4-4z" />
+                    <circle cx="12" cy="6" r="1.5" fill="currentColor" stroke="none" />
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 14v4M8 22h8" />
+                  </svg>
+                  <span class="font-medium text-sm">CH${ch}</span>
+                </div>
+              </td>
+              <td class="whitespace-nowrap px-4 py-3.5 text-gray-500 dark:text-gray-400 text-sm">${locCell}</td>
+              <td class="whitespace-nowrap px-4 py-3.5 text-gray-500 dark:text-gray-400 text-sm">${measCell}</td>
+              <td class="whitespace-nowrap px-4 py-3.5 text-gray-500 dark:text-gray-400 text-sm">${sensCell}</td>
+              <td class="whitespace-nowrap px-4 py-3.5 text-gray-500 dark:text-gray-400 text-sm">${statusCell}</td>
+              <td class="whitespace-nowrap px-4 py-3.5 text-gray-500 dark:text-gray-400 text-sm">${readingCell}</td>
+              <td class="whitespace-nowrap px-4 py-3.5 text-right text-sm font-medium">${actionButtons}</td>
+            </tr>`;
+        }
+
+        // ===== Build the ITA-110 device view image row (Change 3) =====
+        const deviceViewHtml = itaImageB64 ? `
+          <div id="device-view-${gw.ip}" class="device-view-panel ${isDeviceOpen ? 'open' : ''} border-b border-gray-200 dark:border-gray-800">
+            <div class="flex items-center justify-center py-6 px-8 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-900/50">
+              <img src="data:image/png;base64,${itaImageB64}" alt="ITA-110 Data Acquisition Unit" class="max-h-72 rounded-lg shadow-md object-contain" />
+            </div>
+          </div>` : '';
+
+        html += `
+          <!-- Card Container -->
+          <div class="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden bg-white dark:bg-gray-900 shadow-sm">
+            <!-- Card Header -->
+            <div class="bg-gray-50 dark:bg-gray-800/50 px-4 py-3 border-b border-gray-200 dark:border-gray-800">
+              <div class="flex justify-between items-center flex-wrap gap-4">
+                <div class="flex items-center space-x-4 flex-wrap gap-y-2">
+                  <div class="flex items-center space-x-2">
+                    <!-- ITA antenna/signal tower icon (offline SVG) -->
+                    <svg class="size-5 ${serverIconColor}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v12M12 4l-3 3M12 4l3 3" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M8 8a5.5 5.5 0 0 0 0 8" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M16 8a5.5 5.5 0 0 1 0 8" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M5 5a10 10 0 0 0 0 14" />
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M19 5a10 10 0 0 1 0 14" />
+                      <rect x="10" y="16" width="4" height="4" rx="0.5" fill="currentColor" stroke="none" />
+                    </svg>
+                    <span class="font-semibold text-sm text-gray-900 dark:text-gray-100">${gw.name}</span>
+                  </div>
+                  <div class="flex items-center space-x-1">
+                    <span class="text-xs text-gray-500">Location:</span>
+                    <span class="text-xs text-gray-700 dark:text-gray-300 font-medium">${gw.location}</span>
+                  </div>
+                  <div class="flex items-center space-x-1">
+                    <span class="text-xs text-gray-500">Model:</span>
+                    <span class="text-xs font-semibold text-gray-700 dark:text-gray-300">${gw.model}</span>
+                  </div>
+                  <div class="flex items-center space-x-1">
+                    <span class="text-xs text-gray-500">SN:</span>
+                    <span class="text-xs font-mono text-gray-700 dark:text-gray-300">${gw.sn}</span>
+                  </div>
+                  <div class="flex items-center space-x-1">
+                    <span class="inline-flex items-center font-medium rounded-md text-xs px-1.5 py-0.5 gap-0.5 ${statusBadgeClass} ring-1 ring-inset">
+                      ${gw.status}
+                    </span>
+                  </div>
+                  <div class="flex items-center space-x-1">
+                    <svg class="size-3.5 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0 1 18 0z" />
+                    </svg>
+                    <span class="text-xs text-gray-500">${gw.last_seen}</span>
+                  </div>
+                  <div class="flex items-center space-x-1.5">
+                    <svg class="size-3.5 text-green-600 dark:text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                    </svg>
+                    <span class="text-xs text-gray-600 dark:text-gray-400">${gw.connection}</span>
+                  </div>
+                  <span class="text-xs text-gray-500">${gw.ip}:${gw.port}</span>
+                  <span class="text-xs text-gray-500">${gw.date_added || ''}</span>
+                </div>
+
+                <!-- Right Side Card Controls -->
+                <div class="flex items-center space-x-3">
+                  <!-- ===== Change 3: Device View toggle (replaces Sampling) ===== -->
+                  <div class="flex items-center space-x-2 mr-2">
+                    <span class="text-xs text-gray-500">Device View:</span>
+                    <div class="relative inline-flex">
+                      <button onclick="toggleDeviceView('${gw.ip}')" aria-checked="${isDeviceOpen}" class="relative inline-flex flex-shrink-0 border-2 border-transparent disabled:cursor-not-allowed disabled:opacity-50 focus:outline-none h-4 w-7 rounded-full transition-colors ease-in-out duration-200 ${dvBg}" role="switch" type="button">
+                        <span class="pointer-events-none relative inline-block rounded-full bg-white dark:bg-gray-900 shadow transform ring-0 transition ease-in-out duration-200 h-3 w-3 ${dvTranslate}">
+                        </span>
+                      </button>
+                    </div>
+                    <span class="inline-flex items-center font-medium rounded-md text-xs px-1.5 py-0.5 ${dvBadge} ring-1 ring-inset">
+                      ${isDeviceOpen ? 'Visible' : 'Hidden'}
+                    </span>
+                  </div>
+
+                  <!-- Utility Icon Links -->
+                  <div class="flex items-center space-x-1.5">
+                    <!-- ===== Change 4: Info icon (replaces Sync) — gray info circle ===== -->
+                    <button onclick="triggerAction('show_manual', '${gw.ip}', 0)" class="focus:outline-none disabled:cursor-not-allowed disabled:opacity-75 flex-shrink-0 font-medium rounded-md text-xs p-1.5 text-gray-500 dark:text-gray-400 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-500 inline-flex items-center" type="button" title="View ITA-110 Manual">
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                      </svg>
+                    </button>
+                    <!-- Reconnect -->
+                    <button onclick="triggerAction('reconnect_gw', '${gw.ip}', 0)" class="focus:outline-none disabled:cursor-not-allowed disabled:opacity-75 flex-shrink-0 font-medium rounded-md text-xs p-1.5 text-green-500 dark:text-green-400 bg-green-50 hover:bg-green-100 dark:bg-green-950/40 dark:hover:bg-green-900/40 focus-visible:ring-2 focus-visible:ring-green-500 inline-flex items-center" type="button" title="Reconnect Gateway">
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                    </button>
+                    <!-- ===== Change 6: Settings icon — NOW ACTIVE ===== -->
+                    <button onclick="triggerAction('settings', '${gw.ip}', 0)" class="focus:outline-none disabled:cursor-not-allowed disabled:opacity-75 flex-shrink-0 font-medium rounded-md text-xs p-1.5 text-blue-500 dark:text-blue-400 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/40 focus-visible:ring-2 focus-visible:ring-blue-500 inline-flex items-center" type="button" title="Edit Gateway Settings">
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </button>
+                    <!-- ===== Change 7: Schedule icon — NOW ACTIVE ===== -->
+                    <button onclick="triggerAction('schedule', '${gw.ip}', 0)" class="focus:outline-none disabled:cursor-not-allowed disabled:opacity-75 flex-shrink-0 font-medium rounded-md text-xs p-1.5 text-purple-500 dark:text-purple-400 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/40 focus-visible:ring-2 focus-visible:ring-purple-500 inline-flex items-center" type="button" title="Schedule Readings">
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0 1 18 0z" />
+                      </svg>
+                    </button>
+                    <!-- Delete -->
+                    <button onclick="triggerAction('delete_gw', '${gw.ip}', 0)" class="focus:outline-none disabled:cursor-not-allowed disabled:opacity-75 flex-shrink-0 font-medium rounded-md text-xs p-1.5 text-red-500 dark:text-red-400 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/40 focus-visible:ring-2 focus-visible:ring-red-500 inline-flex items-center" type="button" title="Delete Gateway">
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ===== Change 3: Device View panel (collapsible ITA-110 image) ===== -->
+            ${deviceViewHtml}
+
+            <!-- Card Body / Channels Table -->
+            <div class="overflow-x-auto">
+              <table class="min-w-full table-fixed divide-y divide-gray-300 dark:divide-gray-700 text-left">
+                <thead class="bg-gray-50/50 dark:bg-gray-800/30">
+                  <tr>
+                    <th scope="col" class="px-4 py-3.5 text-left text-gray-900 dark:text-white font-semibold text-sm w-[15%]">Channel</th>
+                    <th scope="col" class="px-4 py-3.5 class text-left text-gray-900 dark:text-white font-semibold text-sm w-[25%]">Location (Machine - Point)</th>
+                    <th scope="col" class="px-4 py-3.5 class text-left text-gray-900 dark:text-white font-semibold text-sm w-[15%]">Measurement</th>
+                    <th scope="col" class="px-4 py-3.5 class text-left text-gray-900 dark:text-white font-semibold text-sm w-[15%]">Sensitivity</th>
+                    <th scope="col" class="px-4 py-3.5 class text-left text-gray-900 dark:text-white font-semibold text-sm w-[12%]">Status</th>
+                    <th scope="col" class="px-4 py-3.5 class text-left text-gray-900 dark:text-white font-semibold text-sm w-[13%]">Last Reading</th>
+                    <th scope="col" class="relative px-4 py-3.5 w-[5%]"><span class="sr-only">Actions</span></th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-gray-900">
+                  ${rowsHtml}
+                </tbody>
+              </table>
+            </div>
+          </div>`;
+      });
+
+      listContainer.innerHTML = html;
+    }
+  </script>
+</body>
+</html>

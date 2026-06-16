@@ -7,6 +7,7 @@ def apply_theme():
         bg_img = "radial-gradient(ellipse at 50% top, rgba(35, 140, 160, 0.25) 0%, transparent 50%), radial-gradient(ellipse at 100% bottom, rgba(20, 90, 130, 0.15) 0%, transparent 60%), linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px)"
         sidebar_bg = "rgba(6, 13, 19, 0.95)"
         card_bg = "rgba(15, 30, 45, 0.4)"
+        input_bg = "rgba(15, 30, 45, 0.8)"
         border_clr = "rgba(255, 255, 255, 0.05)"
         accent_color = "#4A90E2"
         mutated_text = "rgba(255, 255, 255, 0.6)"
@@ -16,6 +17,7 @@ def apply_theme():
         bg_img = "none" 
         sidebar_bg = "rgba(225, 224, 219, 0.95)"
         card_bg = "rgba(255, 255, 255, 0.6)"
+        input_bg = "#FFFFFF"
         border_clr = "rgba(0, 0, 0, 0.25)" 
         accent_color = "#3A7CA5" 
         mutated_text = "rgba(0, 0, 0, 0.6)"
@@ -44,15 +46,6 @@ def apply_theme():
         }}
         
         .gold-user {{ color: {gold_color} !important; }}
-        
-        .stButton > button {{
-            background-color: {accent_color} !important; color: #FFFFFF !important;
-            border: none !important; border-radius: 8px !important;
-            padding: 0.5rem 1rem !important; font-weight: 500 !important;
-            transition: all 0.2s ease;
-        }}
-        .stButton > button p, .stButton > button span {{ color: #FFFFFF !important; }}
-        .stButton > button:hover {{ transform: translateY(-1px); box-shadow: 0 4px 12px {accent_color}66 !important; }}
         
         div[data-testid="stMetric"], .plot-container {{
             background-color: {card_bg} !important;
@@ -87,6 +80,78 @@ def apply_theme():
             border-width: 1px !important;
             border-radius: 12px !important;
             box-shadow: none !important;
+            background-color: {bg_color} !important;
+        }}
+        
+        .stButton > button, [data-testid="stFormSubmitButton"] > button {{
+            background-color: {accent_color} !important; color: #FFFFFF !important;
+            border: none !important; border-radius: 8px !important;
+            padding: 0.5rem 1rem !important; font-weight: 500 !important;
+            transition: all 0.2s ease;
+        }}
+        .stButton > button p, .stButton > button span, [data-testid="stFormSubmitButton"] > button p, [data-testid="stFormSubmitButton"] > button span {{ color: #FFFFFF !important; }}
+        .stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover {{ transform: translateY(-1px); box-shadow: 0 4px 12px {accent_color}66 !important; }}
+        
+        [data-testid="stExpander"] details summary, [data-testid="stExpanderDetails"] {{
+            background-color: {card_bg} !important;
+            color: {text_color} !important;
+            border-color: {border_clr} !important;
+        }}
+        
+        [data-testid="stFileUploaderDropzone"], .stTextInput > div > div > div, div[data-baseweb="input"], div[data-baseweb="input"] > div, div[data-baseweb="base-input"] {{
+            background-color: {input_bg} !important;
+            color: {text_color} !important;
+            border-color: {border_clr} !important;
+        }}
+        
+        input, textarea, .stTextInput input {{
+            color: {text_color} !important;
+            -webkit-text-fill-color: {text_color} !important;
+            caret-color: {text_color} !important;
+            background-color: transparent !important;
+        }}
+        
+        div[data-testid="stExpander"] details summary p {{
+            color: {text_color} !important;
+            font-weight: 600 !important;
+        }}
+        
+        .stNumberInput button, .stTextInput button, [data-testid="stNumberInputStepUp"], [data-testid="stNumberInputStepDown"] {{
+            background-color: {input_bg} !important;
+            color: {text_color} !important;
+        }}
+        
+        [data-baseweb="select"], [data-baseweb="select"] > div, [data-baseweb="select"] > div > div {{
+            background-color: {input_bg} !important;
+            color: {text_color} !important;
+        }}
+        
+        [data-testid="stFileUploaderDropzone"] div, [data-testid="stFileUploaderDropzone"] p, [data-testid="stFileUploaderDropzone"] span {{
+            color: {text_color} !important;
+        }}
+        
+        [data-testid="stFileUploaderDropzone"] button {{
+            background-color: {accent_color} !important;
+            color: #FFFFFF !important;
+            border: none !important;
+        }}
+        
+        [data-testid="stFileUploaderDropzone"] button span {{
+            color: #FFFFFF !important;
+        }}
+        
+        [data-baseweb="input"] svg, [data-baseweb="select"] svg, .stNumberInput svg, .stTextInput svg, [data-testid="stFileUploaderDropzone"] svg {{
+            fill: {text_color} !important;
+            color: {text_color} !important;
+        }}
+        
+        ul[role="listbox"] {{
+            background-color: {card_bg} !important;
+        }}
+        
+        ul[role="listbox"] li {{
+            background-color: transparent !important;
+            color: {text_color} !important;
         }}
         
         .adaptive-history {{

@@ -117,7 +117,10 @@ class CTCWrapper:
         
     def subscribe(self):
         async def _run():
-            from CTC.commands import subscribe_to_changes
+            if SIMULATION_MODE:
+                from Gateways_Sim.CTC.commands import subscribe_to_changes
+            else:
+                from CTC.commands import subscribe_to_changes
             ws = await asyncio.wait_for(ctc_conn(f"ws://{self.ip()}:5000"), timeout=3.0)
             res = await asyncio.wait_for(subscribe_to_changes(ws), timeout=1.5)
             await ws.close()
@@ -134,7 +137,10 @@ class CTCWrapper:
         
     def unsubscribe(self):
         async def _run():
-            from CTC.commands import unsubscribe_from_changes
+            if SIMULATION_MODE:
+                from Gateways_Sim.CTC.commands import unsubscribe_from_changes
+            else:
+                from CTC.commands import unsubscribe_from_changes
             ws = await asyncio.wait_for(ctc_conn(f"ws://{self.ip()}:5000"), timeout=3.0)
             res = await asyncio.wait_for(unsubscribe_from_changes(ws), timeout=1.5)
             await ws.close()
@@ -151,7 +157,10 @@ class CTCWrapper:
         
     def get_connected_serials(self):
         async def _run():
-            from CTC.commands import get_connected_dynamic_sensors
+            if SIMULATION_MODE:
+                from Gateways_Sim.CTC.commands import get_connected_dynamic_sensors
+            else:
+                from CTC.commands import get_connected_dynamic_sensors
             ws = await asyncio.wait_for(ctc_conn(f"ws://{self.ip()}:5000"), timeout=3.0)
             res = await asyncio.wait_for(get_connected_dynamic_sensors(ws), timeout=3.0)
             await ws.close()
@@ -163,7 +172,10 @@ class CTCWrapper:
             raise ValueError(f"Serial number must be entirely numeric. You accidentally entered: '{serial}'")
             
         async def _run():
-            from CTC.commands import get_dynamic_vibration_records
+            if SIMULATION_MODE:
+                from Gateways_Sim.CTC.commands import get_dynamic_vibration_records
+            else:
+                from CTC.commands import get_dynamic_vibration_records
             ws = await asyncio.wait_for(ctc_conn(f"ws://{self.ip()}:5000"), timeout=3.0)
             res = await asyncio.wait_for(get_dynamic_vibration_records(ws, serials=[int(serial)], max_records=1), timeout=5.0)
             await ws.close()

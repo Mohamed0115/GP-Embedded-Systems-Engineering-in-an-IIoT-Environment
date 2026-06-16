@@ -18,7 +18,20 @@ def login_view():
                     if user and pwd:
                         with st.spinner("Authenticating..."):
                             time.sleep(1)
+                        if user.lower() == "admin" and pwd != "admin123":
+                            st.error("Invalid Admin password. Access Denied.")
+                            st.stop()
+                            
                         st.session_state.username = user
+                        
+                        # Security Check: Assign roles dynamically
+                        if user.lower() == "admin" and pwd == "admin123":
+                            st.session_state.user_role = "Admin"
+                        else:
+                            st.session_state.user_role = "Engineer"
+                            
+                        # Force a clean routing state so previous sessions don't leak over
+                        st.session_state.current_view = "Dashboard 📊"
                         st.session_state.logged_in = True
                         st.rerun()
                     else:

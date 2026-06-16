@@ -6,9 +6,13 @@ async def send(ws, commands):
 async def receive(ws):
     return {"Status": "OK", "Message": "MOCK_RESPONSE"}
 
+class MockWS:
+    async def close(self):
+        print("MOCK Connection closed")
+
 async def conn(url):
     print(f"MOCK Connected to {url}")
-    return "mock_ws"
+    return MockWS()
 
 async def close(ws):
-    print("MOCK Connection closed")
+    print("MOCK standalone connection closed")
