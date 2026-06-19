@@ -11,6 +11,17 @@ import os
 from core.state_manager import get_user_data, add_to_history
 from core.utils import compute_fft, compute_rms, convert_fft_units
 from views.new_diagnosis import get_all_points_for_selector
+# ============================================================================
+# DB-TODO [IMPORT]: Uncomment the line below once you implement db_gateway_helpers.py
+# See core/db_gateway_helpers.py for the full PostgreSQL table schemas and helper functions.
+# ============================================================================
+# from core.db_gateway_helpers import (
+#     db_get_all_gateways, db_insert_gateway, db_delete_gateway, db_update_gateway, db_update_gateway_status,
+#     db_get_all_channel_configs, db_upsert_channel_config,
+#     db_insert_reading, db_get_readings_for_point,
+#     db_get_scheduler_groups, db_insert_scheduler_group, db_delete_scheduler_group, db_save_all_scheduler_groups,
+#     db_insert_gateway_log, db_get_all_gateway_logs, db_clear_gateway_logs
+# )
 
 # ===== Scaling formula based on Manual Chapter 5.5 =====
 # Acceleration (g) = (Raw * 10000.0) / (8388608.0 * Gain * Sensitivity)
@@ -20,6 +31,12 @@ def calibrate_raw_data(raw_samples, gain, sensitivity):
     return [s * factor for s in raw_samples]
 
 # ===== Log transaction to session state =====
+# DB-TODO [GATEWAY_LOGS]: This function currently saves logs to session_state (RAM only).
+# To make logs persistent across sessions, ALSO call db_insert_gateway_log() here.
+# Example:
+#     db_insert_gateway_log(command, response, status)
+# NOTE: You can keep the session_state.append() as well for instant UI display,
+# or remove it entirely and always read from the DB in show_logs_dialog().
 def log_gateway_transaction(command, response, status="Success"):
     if 'gateway_logs' not in st.session_state:
         st.session_state.gateway_logs = []
@@ -109,12 +126,36 @@ def _load_manual_b64():
 
 def gateways_view():
     # ===== Initialize session state =====
+    # DB-TODO [INIT_GATEWAYS]: Replace the empty list [] with a database query.
+    # Instead of:  st.session_state.gateways = []
+    # Do:          st.session_state.gateways = db_get_all_gateways()
+    # This fetches all gateways from the PostgreSQL 'gateways' table
+    # and loads them into session_state so the frontend component can display them.
     if 'gateways' not in st.session_state:
         st.session_state.gateways = []
-        
+    
+    # DB-TODO [INIT_CONFIGS]: Replace the empty dict {} with a database query.
+    # Instead of:  st.session_state.configured_channels = {}
+    # Do:          st.session_state.configured_channels = db_get_all_channel_configs()
+    # This fetches all saved channel configurations from the 'channel_configs' table.
+    # The returned dict is keyed by (gateway_ip, channel_num) — same format the code already uses.
     if 'configured_channels' not in st.session_state:
         st.session_state.configured_channels = {}
-        
+
+    # DB-TODO [STARTUP_SCHEDULER]: When the laptop/app restarts, the Python threads are dead.
+    # Add a loop here to automatically restart the engine for any gateway that has active groups.
+    # Example logic:
+    # if '_scheduler_started' not in st.session_state:
+    #     st.session_state._scheduler_started = True
+    #     for gw in st.session_state.gateways:
+    #         groups = db_get_scheduler_groups(gw["ip"])
+    #         st.session_state[f"schedule_groups_{gw['ip']}"] = groups
+    #         active_groups = [g for g in groups if g.get("enabled") and g.get("channels")]
+    #         if active_groups:
+    #             _start_scheduler(gw["ip"], gw["port"], active_groups)
+    
+    # DB-NOTE [LOGS_INIT]: This can stay as session_state if you only want current-session logs.
+    # If you want persistent logs, replace [] with db_get_all_gateway_logs().
     if 'gateway_logs' not in st.session_state:
         st.session_state.gateway_logs = []
 
@@ -160,10 +201,17 @@ def gateways_view():
                     if g["ip"] == gw_ip:
                         g["sampling"] = "Running" if g["sampling"] == "Paused" else "Paused"
                         log_gateway_transaction("TOGGLE_SAMPLING", f"Toggled sampling for {g['name']} to {g['sampling']}", "Success")
+                # DB-TODO [TOGGLE_SAMPLING]: After toggling, persist the new sampling state:
+                #     new_sampling = "Running" or "Paused"  (whichever was set above)
+                #     db_update_gateway_status(gw_ip, status=None, sampling=new_sampling)
                 st.rerun()
                 
             elif action == "delete_gw":
                 st.session_state.gateways = [g for g in st.session_state.gateways if g["ip"] != gw_ip]
+                # DB-TODO [DELETE_GW]: Replace the list comprehension above with:
+                #     db_delete_gateway(gw_ip)
+                # The CASCADE in PostgreSQL will automatically delete all channel_configs,
+                # scheduler_groups, and readings that belong to this gateway IP.
                 log_gateway_transaction("DELETE_GATEWAY", f"Deleted gateway {gw_ip}", "Success")
                 st.rerun()
                 
@@ -176,9 +224,13 @@ def gateways_view():
                             g["status"] = "online"
                             g["last_seen"] = "1s ago"
                             log_gateway_transaction("RECONNECT", f"Reconnected to {g['name']}", "Success")
+                            # DB-TODO [RECONNECT_OK]: Persist the new status:
+                            #     db_update_gateway_status(gw_ip, status="online")
                         else:
                             g["status"] = "offline"
                             log_gateway_transaction("RECONNECT", f"Reconnect failed: {msg}", "Failed")
+                            # DB-TODO [RECONNECT_FAIL]: Persist the offline status:
+                            #     db_update_gateway_status(gw_ip, status="offline")
                 st.rerun()
                 
             # ===== Change 2: Handle vendor card clicks from empty state =====
@@ -240,6 +292,8 @@ def gateways_view():
             st.markdown("")
             if st.button("Clear Logs", type="secondary", use_container_width=True):
                 st.session_state.gateway_logs = []
+                # DB-TODO [CLEAR_LOGS]: If you made logs persistent, also call:
+                #     db_clear_gateway_logs()
                 st.rerun()
 
     # ===== Change 1: Fixed Add Gateway dialog =====
@@ -251,6 +305,9 @@ def gateways_view():
         preset_vendor: If "ITA", skip vendor selection and go straight to ITA config form.
         """
         # Initialize modal_vendor from preset or session state
+        # DB-NOTE [MODAL_VENDOR]: DO NOT put this in the database.
+        # st.session_state.modal_vendor is a temporary UI variable that remembers which
+        # vendor button (ITA / CTC) the user clicked. It only matters while the popup is open.
         if preset_vendor:
             st.session_state.modal_vendor = preset_vendor
             
@@ -300,7 +357,12 @@ def gateways_view():
                         "date_added": datetime.datetime.now().strftime("%m/%d/%Y")
                     }
                     st.session_state.gateways.append(new_gw)
+                    # DB-TODO [ADD_GATEWAY]: Replace the .append() above with:
+                    #     db_insert_gateway(new_gw)
+                    # This will INSERT a new row into the 'gateways' PostgreSQL table.
+                    # The dict keys (name, location, model, sn, etc.) map directly to the table columns.
                     log_gateway_transaction("ADD_GATEWAY", f"Added gateway {g_name} ({g_ip}:{g_port})", "Success")
+                    # DB-NOTE [MODAL_VENDOR_CLEAR]: This is UI-only cleanup. Not for the database.
                     st.session_state.modal_vendor = None
                     st.success("Gateway added successfully!")
                     time.sleep(1)
@@ -537,6 +599,11 @@ def gateways_view():
                             config_data["bpf"] = bpf_val
                     
                     st.session_state.configured_channels[key] = config_data
+                    # DB-TODO [SAVE_CONFIG]: Replace the line above with:
+                    #     db_upsert_channel_config(gw_ip, ch_num, config_data)
+                    # This will INSERT a new row or UPDATE the existing row
+                    # in the 'channel_configs' table using ON CONFLICT (gateway_ip, channel_num).
+                    # The config_data dict keys map directly to the table columns.
                     axis_info = f", Axis={axis_val}" if axis_val else ""
                     log_gateway_transaction("CONFIG_CHANNEL",
                         f"Configured CH{ch_num} on {gw_ip}: {m_type} (Gain={gain_val}, "
@@ -550,6 +617,10 @@ def gateways_view():
     def take_reading_dialog(gw_ip, gw_port, ch_num):
         key = (gw_ip, ch_num)
         config = st.session_state.configured_channels.get(key, {})
+        # DB-TODO [READ_CONFIG]: Instead of reading from session_state, you could query:
+        #     config = db_get_channel_config(gw_ip, ch_num)  (you'd need to add this helper)
+        # But since we already loaded all configs into session_state at initialization,
+        # this line is fine as-is. The session_state acts as a cache.
         
         m_type = config.get('type', '')
         is_static = m_type in ["Temperature", "Pressure"]
@@ -570,6 +641,10 @@ def gateways_view():
         else:
             st.info("Static measurement — reading sensor value directly.")
         
+        # DB-NOTE [TEMP_READING_VARS]: These 3 session_state variables are TEMPORARY.
+        # They hold the graph data ONLY while the "Take Reading" popup is open.
+        # They are NOT saved to the database. The actual save happens further below (DB-TODO [SAVE_READING]).
+        # DO NOT put these in the database.
         if 'last_dialog_reading' not in st.session_state:
             st.session_state.last_dialog_reading = None
             st.session_state.last_dialog_fft = None
@@ -602,6 +677,10 @@ def gateways_view():
                     config["last_unit"] = "g" if m_type == "Acceleration" else (config.get("unit").split("/")[-1] if "/" in config.get("unit") else config.get("unit"))
                     config["last_time"] = datetime.datetime.now().strftime("%H:%M:%S")
                     st.session_state.configured_channels[key] = config
+                    # DB-TODO [UPDATE_LAST_VAL]: After a reading, the config's last_val / last_unit / last_time
+                    # fields are updated to show the latest reading on the gateway card.
+                    # Persist this to the database:
+                    #     db_upsert_channel_config(gw_ip, ch_num, config)
                     
                     # ===== Write reading to diagnosis point =====
                     pt_id = config.get("point_id")
@@ -618,6 +697,22 @@ def gateways_view():
                                 "sr": sr,
                                 "timestamp": datetime.datetime.now().isoformat()
                             }
+                    # DB-TODO [SAVE_READING]: This is the MOST IMPORTANT database operation.
+                    # The reading data (calibrated waveform + FFT) must be saved permanently.
+                    # Replace or add alongside the diag_nodes write above:
+                    #     db_insert_reading(
+                    #         gateway_ip=gw_ip,
+                    #         channel_num=ch_num,
+                    #         point_id=pt_id,
+                    #         axis=axis_name,
+                    #         calibrated=calibrated,        # List of floats (time waveform)
+                    #         freq_list=f.tolist(),          # List of floats (frequency bins)
+                    #         amp_list=fft_vals.tolist(),    # List of floats (FFT amplitudes)
+                    #         sr=sr,                         # Integer (sample rate)
+                    #         rms_value=st.session_state.last_dialog_rms
+                    #     )
+                    # WARNING: These arrays can contain thousands of numbers.
+                    # For production, consider saving to .csv files and storing the file path.
                     
                     st.success("Data Acquired successfully!")
                 except Exception as e:
@@ -760,6 +855,16 @@ def gateways_view():
                 st.session_state.gateways[gw_idx]["ip"] = g_ip
                 st.session_state.gateways[gw_idx]["port"] = int(g_port)
                 st.session_state.gateways[gw_idx]["connection"] = g_net
+                # DB-TODO [EDIT_GATEWAY]: Replace the 6 lines above with a single call:
+                #     db_update_gateway(gw_ip, {
+                #         "name": g_name,
+                #         "location": g_loc or "Not specified",
+                #         "sn": g_sn,
+                #         "ip": g_ip,
+                #         "port": int(g_port),
+                #         "connection": g_net
+                #     })
+                # This executes: UPDATE gateways SET name=%s, location=%s, ... WHERE ip=%s
                 log_gateway_transaction("EDIT_GATEWAY", f"Updated gateway {g_name} ({g_ip}:{g_port})", "Success")
                 st.success("Gateway settings updated!")
                 time.sleep(1)
@@ -772,6 +877,10 @@ def gateways_view():
     # --- Background Scheduler Engine ---
     # Global dict tracking running scheduler threads per gateway IP
     # Key = gw_ip, Value = {"thread": Thread, "stop_event": Event, "groups": [...]}
+    # DB-NOTE [SCHEDULER_THREADS]: DO NOT put this in the database.
+    # st.session_state._scheduler_threads holds live Python threading.Thread objects.
+    # These are in-memory OS-level threads that run the background acquisition loop.
+    # You CANNOT store thread objects in PostgreSQL. This must stay in session_state.
     if '_scheduler_threads' not in st.session_state:
         st.session_state._scheduler_threads = {}
     
@@ -863,6 +972,15 @@ def gateways_view():
                                 config.get("unit", "mV").split("/")[-1] if "/" in config.get("unit", "mV") else config.get("unit", "mV"))
                             config["last_time"] = datetime.datetime.now().strftime("%H:%M:%S")
                             configured_channels[key] = config
+                            # DB-TODO [SCHEDULED_READ_SAVE]: The background scheduler just acquired data.
+                            # Save the updated config (last_val, last_unit, last_time) to the database:
+                            #     db_upsert_channel_config(gw_ip, ch_num, config)
+                            # Also insert the actual reading data:
+                            #     db_insert_reading(gw_ip, ch_num, config.get("point_id"),
+                            #         config.get("axis", "H Axis"), calibrated,
+                            #         compute_fft(np.array(calibrated), sr)[0].tolist(),
+                            #         compute_fft(np.array(calibrated), sr)[1].tolist(),
+                            #         sr, rms_val)
                             
                             log_gateway_transaction("SCHEDULED_READ",
                                 f"[{grp.get('name', 'Group')}] CH{ch_num} RMS={rms_val:.4f} {config['last_unit']}", "Success")
@@ -936,6 +1054,10 @@ def gateways_view():
         
         # Initialize schedule groups state
         groups_key = f"schedule_groups_{gw_ip}"
+        # DB-TODO [INIT_GROUPS]: Replace the empty list [] with a database query.
+        # Instead of:  st.session_state[groups_key] = []
+        # Do:          st.session_state[groups_key] = db_get_scheduler_groups(gw_ip)
+        # This fetches all saved schedule groups for this gateway from the 'scheduler_groups' table.
         if groups_key not in st.session_state:
             st.session_state[groups_key] = []
         
@@ -967,6 +1089,17 @@ def gateways_view():
                     "daily_time": datetime.time(8, 0),
                     "enabled": True
                 })
+                # DB-TODO [ADD_GROUP]: Also insert this new group into the database:
+                #     db_insert_scheduler_group(gw_ip, {
+                #         "name": f"Group {len(...)}",
+                #         "channels": [],
+                #         "schedule_type": "Simple Interval",
+                #         "interval": "Every 1 hour",
+                #         "n_hours": 1,
+                #         "times_per_day": 2,
+                #         "daily_time": datetime.time(8, 0),
+                #         "enabled": True
+                #     })
                 st.rerun()
         
         # ===== Render each group as a card =====
@@ -1048,6 +1181,10 @@ def gateways_view():
         # Process group deletions
         if groups_to_delete:
             for idx in sorted(groups_to_delete, reverse=True):
+                # DB-TODO [DELETE_GROUP]: If you added a database ID to each group dict,
+                # delete by that ID before popping from the list:
+                #     group_to_del = st.session_state[groups_key][idx]
+                #     db_delete_scheduler_group(group_to_del["id"])
                 st.session_state[groups_key].pop(idx)
             st.rerun()
         
@@ -1073,6 +1210,10 @@ def gateways_view():
                 if st.button("💾 Save & Start Schedule", type="primary", use_container_width=True):
                     # Save groups to session state
                     st.session_state[groups_key] = groups
+                    # DB-TODO [SAVE_ALL_GROUPS]: Persist all groups to the database.
+                    # This replaces all existing groups for this gateway:
+                    #     db_save_all_scheduler_groups(gw_ip, groups)
+                    # This does DELETE all old groups + INSERT all current groups in one transaction.
                     
                     # Filter to only enabled groups with channels
                     active_groups = [g for g in groups if g.get("enabled") and g.get("channels")]
@@ -1093,6 +1234,10 @@ def gateways_view():
     # ===============================================
     # ===== Trigger Pending Actions =====
     # ===============================================
+    # DB-NOTE [PENDING_ACTION]: DO NOT put pending_action or last_action_event in the database.
+    # These are Streamlit's internal mechanism for passing click events from the
+    # custom JS component to the Python dialogs. They are set, consumed, and cleared
+    # within a single page refresh cycle. They have no persistent meaning.
     if getattr(st.session_state, "pending_action", None):
         pending = st.session_state.pending_action
         st.session_state.pending_action = None  # Clear immediately
@@ -1108,6 +1253,9 @@ def gateways_view():
             configure_channel_dialog(pending["gw_ip"], pending["ch"])
         elif pending["action"] == "read":
             gw_port = 8020
+            # DB-NOTE [PORT_LOOKUP]: This loop finds the port for a gateway IP.
+            # Once you load gateways from the DB, this loop still works correctly
+            # because st.session_state.gateways is loaded from db_get_all_gateways().
             for g in st.session_state.gateways:
                 if g["ip"] == pending["gw_ip"]:
                     gw_port = g["port"]
@@ -1122,3 +1270,28 @@ def gateways_view():
         # ===== Change 7: Schedule readings =====
         elif pending["action"] == "schedule":
             schedule_readings_dialog(pending["gw_ip"])
+
+# ============================================================================
+# DB-SUMMARY: Quick Reference of ALL session_state variables in this file
+# ============================================================================
+#
+# REPLACE WITH DATABASE (your job):
+#   st.session_state.gateways              → db_get_all_gateways()           [list of gateway dicts]
+#   st.session_state.configured_channels   → db_get_all_channel_configs()    [dict keyed by (ip, ch)]
+#   st.session_state.gateway_logs          → db_get_all_gateway_logs()       [list of log dicts]  (OPTIONAL)
+#   st.session_state[f"schedule_groups_{ip}"] → db_get_scheduler_groups(ip)  [list of group dicts]
+#   diag_nodes[pt_id]["readings"]          → db_insert_reading(...)          [reading arrays]
+#
+# DO NOT TOUCH (UI-only / threading):
+#   st.session_state.modal_vendor          → Which vendor button is selected in the Add dialog
+#   st.session_state.last_dialog_reading   → Temporary waveform array while the Take Reading popup is open
+#   st.session_state.last_dialog_fft       → Temporary FFT array while the Take Reading popup is open
+#   st.session_state.last_dialog_rms       → Temporary RMS value while the Take Reading popup is open
+#   st.session_state.last_action_event     → Last JS component event (internal Streamlit bridge)
+#   st.session_state.pending_action        → Pending dialog to open (internal Streamlit bridge)
+#   st.session_state._scheduler_threads    → Live Python Thread objects (cannot be stored in PostgreSQL)
+#
+# DATABASE HELPER FILE:
+#   core/db_gateway_helpers.py  — Contains all table CREATE SQL + Python functions (all commented out)
+#   Uncomment and implement each function, then import at the top of this file.
+# ============================================================================
