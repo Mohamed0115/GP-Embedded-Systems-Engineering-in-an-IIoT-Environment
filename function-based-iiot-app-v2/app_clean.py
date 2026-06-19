@@ -22,6 +22,7 @@ from views.ita_gateway import ita_gateway_view
 from views.ctc_gateway import ctc_gateway_view
 from views.machines import machines_view
 from views.diagnostics import diagnostics_view
+from views.new_diagnosis import new_diagnosis_view
 from views.admin_panel import admin_panel_view  # Original (kept for reference)
 from views.admin_panel_v2 import admin_panel_v2_view  # New custom component version
 
@@ -46,7 +47,7 @@ else:
             st.markdown(f"<h3 style='margin-top: 5px;'>Welcome, <span class='gold-user'>{st.session_state.username}</span></h3>", unsafe_allow_html=True)
             st.markdown("<hr style='border: 1px solid rgba(100,100,100,0.2);'>", unsafe_allow_html=True)
             
-            menu_items = ["Dashboard 📊", "Gateways 🔌", "ITA-110 Gateway ⚙️", "CTC Connect 📡", "Machines & Diagnosis 🏭", "Diagnostics 📈"]
+            menu_items = ["Dashboard 📊", "Gateways 🔌", "ITA-110 Gateway ⚙️", "CTC Connect 📡", "Machines & Diagnosis 🏭", "Diagnostics 📈", "New Diagnosis 🔬"]
             
             # Secret Admin Role Verification
             if st.session_state.get('user_role') == "Admin":
@@ -87,5 +88,7 @@ else:
     elif is_diagnostics:
         # Diagnostics renders its OWN sidebar (the tree replaces the normal nav)
         diagnostics_view()
+    elif st.session_state.current_view == "New Diagnosis 🔬":
+        new_diagnosis_view()
     elif st.session_state.current_view == "Admin Panel 🛡️":
         admin_panel_v2_view()  # Using custom component version (Change 5)

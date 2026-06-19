@@ -264,8 +264,10 @@
             </button>`;
 
           if (config && config.configured) {
-            locCell = `<span class="text-sm font-medium text-gray-700 dark:text-gray-300">Production Floor A</span>`;
-            measCell = `<span class="text-sm font-medium text-gray-800 dark:text-gray-200">${config.type}</span>`;
+            const locText = config.location_display || 'Not assigned';
+            locCell = `<span class="text-sm font-medium text-gray-700 dark:text-gray-300">${locText}</span>`;
+            const axisLabel = config.axis ? `<div class="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">${config.axis}</div>` : '';
+            measCell = `<div class="flex flex-col"><span class="text-sm font-medium text-gray-800 dark:text-gray-200">${config.type}</span>${axisLabel}</div>`;
             sensCell = `<span class="text-sm font-mono text-gray-700 dark:text-gray-300">${config.sensitivity} ${config.unit}</span>`;
             statusCell = `
               <span class="inline-flex items-center font-medium rounded-md text-xs px-1.5 py-0.5 gap-0.5 bg-green-50 dark:bg-green-400/10 text-green-700 dark:text-green-400 ring-1 ring-inset ring-green-600/10 dark:ring-green-400/20">

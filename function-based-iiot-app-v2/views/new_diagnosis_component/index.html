@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Diagnosis Component</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.plot.ly/plotly-basic-2.35.2.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: { colors: {
+        company: '#1E293B', plant: '#0F766E', zone: '#1D4ED8',
+        machine: '#7C3AED', point: '#BE185D'
+      }}}
+    }
+  </script>
+  <style>
+    body { background: transparent !important; font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; padding: 0; }
+
+    /* ===== ORG CHART TREE CONNECTORS ===== */
+    .org-tree { display: flex; justify-content: center; }
+    .org-tree ul { display: flex; justify-content: center; padding-top: 28px; position: relative; list-style: none; margin: 0; padding-left: 0; padding-right: 0; padding-top: 28px; gap: 8px; flex-wrap: nowrap; }
+    .org-tree ul::before { content: ''; position: absolute; top: 0; left: 50%; width: 2px; height: 28px; background: #94a3b8; }
+    .org-tree li { display: flex; flex-direction: column; align-items: center; position: relative; padding: 28px 6px 0; flex-shrink: 0; }
+    .org-tree li::before, .org-tree li::after {
+      content: ''; position: absolute; top: 0; width: 50%; height: 28px; border-top: 2px solid #94a3b8;
+    }
+    .org-tree li::before { right: 50%; border-right: 2px solid #94a3b8; }
+    .org-tree li::after { left: 50%; }
+    .org-tree li:first-child::before { border: none; }
+    .org-tree li:last-child::after { border: none; }
+    .org-tree li:only-child::before, .org-tree li:only-child::after { border: none; }
+    .org-tree li:only-child { padding-top: 28px; }
+    .org-tree > li { padding-top: 0; }
+    .org-tree > li::before, .org-tree > li::after { display: none; }
+    /* Root level: no top connector */
+    .org-tree > ul::before { display: none; }
+    .org-tree > ul > li { padding-top: 0; }
+    .org-tree > ul > li::before, .org-tree > ul > li::after { display: none; }
+
+    /* Hide connectors on folded children */
+    .org-tree ul.folded { display: none !important; }
+
+    /* ===== CARD STYLES ===== */
+    .node-card {
+      position: relative; min-width: 160px; max-width: 220px; border-radius: 10px;
+      border: 3px solid #94a3b8; padding: 10px 12px; cursor: default;
+      background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      transition: box-shadow 0.2s ease, transform 0.15s ease;
+    }
+    .node-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.15); transform: translateY(-2px); }
+
+    /* Level border colors */
+    .node-card[data-type="company"] { border-color: #1E293B; }
+    .node-card[data-type="plant"]   { border-color: #0F766E; }
+    .node-card[data-type="zone"]    { border-color: #1D4ED8; }
+    .node-card[data-type="machine"] { border-color: #7C3AED; }
+    .node-card[data-type="point"]   { border-color: #BE185D; }
+
+    .node-card .card-name { font-weight: 600; font-size: 13px; color: #1e293b; line-height: 1.3; }
+    .node-card .card-sub  { font-size: 11px; color: #64748b; margin-top: 2px; }
+    .node-card .card-photo { width: 100%; height: 80px; object-fit: cover; border-radius: 6px; margin-top: 6px; position: relative; }
+
+    /* Status indicator (top-right corner) */
+    .status-rect {
+      position: absolute; top: 6px; right: 6px; width: 16px; height: 12px;
+      border-radius: 3px; cursor: pointer; border: 1px solid rgba(0,0,0,0.15);
+      transition: transform 0.15s ease;
+    }
+    .status-rect:hover { transform: scale(1.3); }
+
+    /* Action buttons bar (below card) */
+    .card-actions {
+      display: flex; justify-content: center; gap: 2px; margin-top: 4px;
+      opacity: 0; transition: opacity 0.2s ease;
+    }
+    .node-card-wrapper:hover .card-actions { opacity: 1; }
+    .card-actions button {
+      width: 26px; height: 26px; border: 1px solid #e2e8f0; border-radius: 6px;
+      background: #fff; cursor: pointer; font-size: 12px; display: flex;
+      align-items: center; justify-content: center;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .card-actions button:hover { background: #f1f5f9; border-color: #94a3b8; }
+    .card-actions button.act-edit:hover   { background: #dbeafe; border-color: #3b82f6; }
+    .card-actions button.act-add:hover    { background: #dcfce7; border-color: #22c55e; }
+    .card-actions button.act-del:hover    { background: #fee2e2; border-color: #ef4444; }
+    .card-actions button.act-fold:hover   { background: #fef3c7; border-color: #f59e0b; }
+    .card-actions button.act-open:hover   { background: #ede9fe; border-color: #7c3aed; }
+
+    /* ===== MODAL STYLES ===== */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5); display: flex; align-items: center;
+      justify-content: center; z-index: 9999; backdrop-filter: blur(4px);
+    }
+    .modal-box {
+      background: #fff; border-radius: 14px; padding: 24px; width: 90%; max-width: 520px;
+      max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+      animation: modal-in 0.25s ease;
+    }
+    @keyframes modal-in { from { opacity:0; transform: scale(0.95) translateY(10px); } to { opacity:1; transform: scale(1) translateY(0); } }
+    .modal-box h3 { font-size: 18px; font-weight: 700; color: #1e293b; margin: 0 0 16px 0; }
+    .modal-box label { display: block; font-size: 13px; font-weight: 600; color: #475569; margin: 12px 0 4px 0; }
+    .modal-box input[type="text"], .modal-box input[type="number"], .modal-box select {
+      width: 100%; padding: 8px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px;
+      font-size: 14px; outline: none; transition: border-color 0.2s ease;
+      box-sizing: border-box;
+    }
+    .modal-box input:focus, .modal-box select:focus { border-color: #3b82f6; }
+    .modal-box .btn-row { display: flex; gap: 10px; margin-top: 20px; }
+    .modal-box .btn-cancel {
+      flex: 1; padding: 10px; border: 1.5px solid #e2e8f0; border-radius: 8px;
+      background: #fff; cursor: pointer; font-weight: 600; font-size: 14px; color: #64748b;
+    }
+    .modal-box .btn-cancel:hover { background: #f8fafc; }
+    .modal-box .btn-primary {
+      flex: 1; padding: 10px; border: none; border-radius: 8px;
+      background: #22c55e; color: #fff; cursor: pointer; font-weight: 600; font-size: 14px;
+    }
+    .modal-box .btn-primary:hover { background: #16a34a; }
+    .modal-box .btn-danger {
+      flex: 1; padding: 10px; border: none; border-radius: 8px;
+      background: #ef4444; color: #fff; cursor: pointer; font-weight: 600; font-size: 14px;
+    }
+    .modal-box .btn-danger:hover { background: #dc2626; }
+
+    /* Photo upload area */
+    .photo-upload-area {
+      border: 2px dashed #cbd5e1; border-radius: 10px; padding: 20px;
+      text-align: center; cursor: pointer; transition: border-color 0.2s;
+      position: relative;
+    }
+    .photo-upload-area:hover { border-color: #3b82f6; }
+    .photo-upload-area input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .photo-upload-area img { max-width: 100%; max-height: 200px; border-radius: 8px; }
+
+    /* Pin placement canvas */
+    .pin-canvas-wrap {
+      position: relative; display: inline-block; margin-top: 8px; cursor: crosshair;
+      border: 2px solid #e2e8f0; border-radius: 8px; overflow: hidden;
+    }
+    .pin-canvas-wrap img { display: block; max-width: 100%; max-height: 280px; user-select: none; pointer-events: none; }
+    .pin-dot {
+      position: absolute; width: 18px; height: 18px; border-radius: 50%;
+      background: #ef4444; border: 2px solid #fff; transform: translate(-50%, -50%);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3); font-size: 9px; color: #fff;
+      display: flex; align-items: center; justify-content: center; font-weight: 700;
+    }
+    .pin-dot.selectable { cursor: pointer; background: #3b82f6; }
+    .pin-dot.selectable:hover { background: #2563eb; transform: translate(-50%, -50%) scale(1.3); }
+    .pin-dot.selected { background: #22c55e; transform: translate(-50%, -50%) scale(1.2); }
+    .pin-dot.assigned { background: #94a3b8; cursor: not-allowed; opacity: 0.5; }
+
+    /* ===== POINT DETAIL VIEW ===== */
+    .point-detail { padding: 8px; }
+    .breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 14px; color: #64748b; flex-wrap: wrap; margin-bottom: 16px; }
+    .breadcrumb a { color: #3b82f6; text-decoration: none; cursor: pointer; font-weight: 500; }
+    .breadcrumb a:hover { text-decoration: underline; }
+    .breadcrumb .sep { color: #cbd5e1; }
+    .breadcrumb .current { font-weight: 700; color: #1e293b; }
+
+    .tabs-bar { display: flex; gap: 0; border-bottom: 2px solid #e2e8f0; margin-bottom: 16px; overflow-x: auto; }
+    .tab-btn {
+      padding: 10px 18px; font-size: 13px; font-weight: 600; color: #64748b;
+      cursor: pointer; border: none; background: none; white-space: nowrap;
+      border-bottom: 3px solid transparent; transition: all 0.2s ease;
+    }
+    .tab-btn:hover { color: #1e293b; background: #f8fafc; }
+    .tab-btn.active { color: #1e293b; border-bottom-color: #3b82f6; }
+
+    .tab-content { min-height: 200px; }
+    .coming-soon { text-align: center; padding: 60px 20px; color: #94a3b8; font-size: 16px; }
+    .coming-soon svg { width: 48px; height: 48px; margin: 0 auto 12px; }
+
+    .axis-section { margin-bottom: 24px; }
+    .axis-label { font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+    .axis-stats { font-size: 12px; color: #64748b; margin-bottom: 8px; }
+
+    /* ===== MINIMAP ===== */
+    .minimap-container {
+      position: fixed; bottom: 16px; right: 16px; width: 200px; height: 140px;
+      background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 10px;
+      overflow: hidden; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .minimap-container canvas { width: 100%; height: 100%; }
+    .minimap-viewport {
+      position: absolute; border: 2px solid #3b82f6; background: rgba(59,130,246,0.1);
+      cursor: grab; border-radius: 3px;
+    }
+    .minimap-viewport:active { cursor: grabbing; }
+
+    /* ===== SEARCH BAR ===== */
+    .search-container {
+      position: fixed; bottom: 16px; left: 16px; display: flex; gap: 4px;
+      z-index: 100; background: #fff; border: 2px solid #e2e8f0;
+      border-radius: 10px; padding: 4px 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .search-container input {
+      border: none; outline: none; font-size: 13px; width: 180px; padding: 6px 8px;
+    }
+    .search-container button {
+      width: 32px; height: 32px; border: none; border-radius: 6px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      font-size: 14px; background: #f1f5f9;
+    }
+    .search-container button:hover { background: #e2e8f0; }
+
+    /* ===== LIGHTBOX ===== */
+    .lightbox {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 99999;
+      display: flex; align-items: center; justify-content: center;
+      animation: fade-in 0.2s ease;
+    }
+    @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+    .lightbox img { max-width: 90%; max-height: 90%; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+    .lightbox .close-btn {
+      position: absolute; top: 20px; right: 24px; font-size: 28px; color: #fff;
+      cursor: pointer; width: 40px; height: 40px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(255,255,255,0.15); border: none;
+    }
+    .lightbox .close-btn:hover { background: rgba(255,255,255,0.3); }
+
+    /* ===== CHART CONTAINER ===== */
+    #chart-scroll { overflow: auto; position: relative; min-height: 400px; padding: 20px; padding-bottom: 80px; }
+
+    /* ===== HEADER ===== */
+    .page-header {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 16px; border-bottom: 1px solid #e2e8f0; margin-bottom: 8px;
+    }
+    .page-header h2 { font-size: 18px; font-weight: 700; color: #1e293b; margin: 0; }
+    .add-plant-btn {
+      display: flex; align-items: center; gap: 6px; padding: 8px 16px;
+      border: none; border-radius: 8px; background: #22c55e; color: #fff;
+      font-weight: 600; font-size: 13px; cursor: pointer;
+      transition: background 0.2s ease, transform 0.1s ease;
+    }
+    .add-plant-btn:hover { background: #16a34a; transform: translateY(-1px); }
+    .add-plant-btn svg { width: 16px; height: 16px; }
+
+    /* Empty state */
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 80px 20px; color: #94a3b8;
+    }
+    .empty-state svg { width: 80px; height: 80px; margin-bottom: 16px; opacity: 0.5; }
+    .empty-state p { font-size: 16px; margin: 4px 0; }
+    .empty-state .hint { font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script>
+    // ===================================================================
+    // STREAMLIT COMPONENT COMMUNICATION
+    // ===================================================================
+    const sendMessage = (type, data = {}) => {
+      window.parent.postMessage({ isStreamlitMessage: true, type, ...data }, "*");
+    };
+    const triggerAction = (eventObj) => {
+      sendMessage("streamlit:setComponentValue", { value: { ...eventObj, _ts: Date.now() } });
+    };
+    window.addEventListener("message", (event) => {
+      const msg = event.data;
+      if (msg.type === "streamlit:render") {
+        diagData = msg.args.diag_data || { nodes: {}, root_companies: [] };
+        currentMode = msg.args.mode || "main";
+        pointData = msg.args.point_data || null;
+        breadcrumb = msg.args.breadcrumb || [];
+        render();
+      }
+    });
+    sendMessage("streamlit:componentReady", { apiVersion: 1 });
+    const resizeObserver = new ResizeObserver(() => {
+      const h = document.documentElement.scrollHeight || document.body.scrollHeight;
+      sendMessage("streamlit:setFrameHeight", { height: h + 20 });
+    });
+    resizeObserver.observe(document.body);
+
+    // ===================================================================
+    // STATE
+    // ===================================================================
+    let diagData = { nodes: {}, root_companies: [] };
+    let currentMode = "main";
+    let pointData = null;
+    let breadcrumb = [];
+    let foldedNodes = {};      // JS-only fold state
+    let searchQuery = "";
+    let activeTab = "time_waveform";
+
+    const LEVEL_COLORS = {
+      company: "#1E293B", plant: "#0F766E", zone: "#1D4ED8",
+      machine: "#7C3AED", point: "#BE185D"
+    };
+    const STATUS_COLORS = ["gray", "#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6"];
+    const STATUS_LABELS = ["gray", "red", "orange", "yellow", "green", "blue"];
+    const CHILD_TYPE = { company: "plant", plant: "zone", zone: "machine", machine: "point" };
+    const TYPE_LABELS = { company: "Company", plant: "Plant", zone: "Zone/Area", machine: "Machine", point: "Point" };
+    const VIB_CATS = ["N/A", "VERY SMOOTH", "SMOOTH", "STANDARD", "ROUGH", "VERY ROUGH"];
+    const OP_SIGS = ["N/A", "ONE", "TWO", "THREE", "FOUR", "FIVE"];
+
+    // ===================================================================
+    // MAIN RENDER
+    // ===================================================================
+    function render() {
+      const app = document.getElementById("app");
+      if (currentMode === "point_detail" && pointData) {
+        app.innerHTML = renderPointDetailView();
+        initPointDetailCharts();
+      } else {
+        app.innerHTML = renderMainView();
+        initMinimap();
+      }
+    }
+
+    // ===================================================================
+    // MAIN VIEW
+    // ===================================================================
+    function renderMainView() {
+      const nodes = diagData.nodes || {};
+      const roots = diagData.root_companies || [];
+      const hasData = roots.length > 0;
+
+      let chartHTML = "";
+      if (hasData) {
+        // Filter by search
+        const visibleSet = searchQuery ? getSearchVisibleSet(searchQuery) : null;
+        let treesHTML = "";
+        for (const compId of roots) {
+          if (visibleSet && !visibleSet.has(compId)) continue;
+          treesHTML += `<li>${renderNodeRecursive(compId, visibleSet)}</li>`;
+        }
+        chartHTML = `<div class="org-tree"><ul>${treesHTML}</ul></div>`;
+      } else {
+        chartHTML = `
+          <div class="empty-state">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21"/>
+            </svg>
+            <p>No plants configured yet</p>
+            <p class="hint">Click "+ Add Plant" to get started</p>
+          </div>`;
+      }
+
+      return `
+        <div class="page-header">
+          <h2>🔬 New Diagnosis</h2>
+          <button class="add-plant-btn" onclick="openAddPlantModal()">
+            <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z"/></svg>
+            Add Plant
+          </button>
+        </div>
+        <div id="chart-scroll">${chartHTML}</div>
+        ${renderSearchBar()}
+        ${hasData ? renderMinimapContainer() : ""}
+      `;
+    }
+
+    // ===================================================================
+    // RECURSIVE NODE RENDERING
+    // ===================================================================
+    function renderNodeRecursive(nodeId, visibleSet) {
+      const nodes = diagData.nodes;
+      const node = nodes[nodeId];
+      if (!node) return "";
+      if (visibleSet && !visibleSet.has(nodeId)) return "";
+
+      const isFolded = foldedNodes[nodeId] === true;
+      const children = node.children || [];
+      const hasChildren = children.length > 0;
+      const childType = CHILD_TYPE[node.type];
+
+      // Card HTML
+      const cardHTML = renderCard(node);
+
+      // Children HTML
+      let childrenHTML = "";
+      if (hasChildren && !isFolded) {
+        let childItems = "";
+        for (const cid of children) {
+          if (visibleSet && !visibleSet.has(cid)) continue;
+          childItems += `<li>${renderNodeRecursive(cid, visibleSet)}</li>`;
+        }
+        if (childItems) {
+          childrenHTML = `<ul${isFolded ? ' class="folded"' : ''}>${childItems}</ul>`;
+        }
+      }
+
+      return `<div class="node-card-wrapper">${cardHTML}</div>${childrenHTML}`;
+    }
+
+    function renderCard(node) {
+      const statusColor = node.status_color || "gray";
+      const statusBg = statusColor === "gray" ? "#94a3b8" :
+                        statusColor === "red" ? "#ef4444" :
+                        statusColor === "orange" ? "#f97316" :
+                        statusColor === "yellow" ? "#eab308" :
+                        statusColor === "green" ? "#22c55e" :
+                        statusColor === "blue" ? "#3b82f6" : "#94a3b8";
+
+      let content = `<div class="card-name">${escHtml(node.name)}</div>`;
+
+      // Plant: show location
+      if (node.type === "plant" && node.location) {
+        content += `<div class="card-sub">📍 ${escHtml(node.location)}</div>`;
+      }
+
+      // Machine: show photo thumbnail with pins
+      if (node.type === "machine" && node.photo_b64) {
+        content += renderMachineThumb(node);
+      }
+
+      // Point: show machine photo with single pin
+      if (node.type === "point") {
+        const parentNode = diagData.nodes[node.parent_id];
+        if (parentNode && parentNode.photo_b64) {
+          content += renderPointThumb(node, parentNode);
+        }
+      }
+
+      // Action buttons
+      const childType = CHILD_TYPE[node.type];
+      const canAddChild = !!childType;
+      const canOpenPage = node.type === "point";
+      const hasChildren = (node.children || []).length > 0;
+      const isFolded = foldedNodes[node.id] === true;
+
+      let actions = `<div class="card-actions">`;
+      actions += `<button class="act-edit" onclick="openEditModal('${node.id}')" title="Edit">✏️</button>`;
+      if (canAddChild) {
+        actions += `<button class="act-add" onclick="openAddChildModal('${node.id}')" title="Add ${TYPE_LABELS[childType] || 'Child'}">➕</button>`;
+      }
+      actions += `<button class="act-del" onclick="openDeleteModal('${node.id}')" title="Delete">🗑️</button>`;
+      if (hasChildren) {
+        actions += `<button class="act-fold" onclick="toggleFold('${node.id}')" title="${isFolded ? 'Unfold' : 'Fold'}">${isFolded ? '🔽' : '🔼'}</button>`;
+      }
+      if (canOpenPage) {
+        actions += `<button class="act-open" onclick="triggerAction({action:'open_page',node_id:'${node.id}'})" title="Open Page">📄</button>`;
+      }
+      actions += `</div>`;
+
+      return `
+        <div class="node-card" data-type="${node.type}" ondblclick="handleCardDblClick('${node.id}')">
+          <div class="status-rect" style="background:${statusBg}" onclick="cycleStatus('${node.id}', event)" title="Click to change status"></div>
+          ${content}
+        </div>
+        ${actions}
+      `;
+    }
+
+    function renderMachineThumb(node) {
+      const pins = node.pins || [];
+      let pinsHTML = "";
+      for (let i = 0; i < pins.length; i++) {
+        const p = pins[i];
+        pinsHTML += `<div class="pin-dot" style="left:${p.x * 100}%;top:${p.y * 100}%">${i + 1}</div>`;
+      }
+      return `
+        <div class="pin-canvas-wrap" style="margin-top:6px;cursor:default;border:1px solid #e2e8f0;">
+          <img src="${node.photo_b64}" style="pointer-events:none;max-height:80px;width:100%;object-fit:cover;display:block;">
+          ${pinsHTML}
+        </div>`;
+    }
+
+    function renderPointThumb(pointNode, machineNode) {
+      const pinIdx = pointNode.pin_index;
+      const pins = machineNode.pins || [];
+      let pinHTML = "";
+      if (pinIdx >= 0 && pinIdx < pins.length) {
+        const p = pins[pinIdx];
+        pinHTML = `<div class="pin-dot selected" style="left:${p.x * 100}%;top:${p.y * 100}%">●</div>`;
+      }
+      return `
+        <div class="pin-canvas-wrap" style="margin-top:6px;cursor:default;border:1px solid #e2e8f0;">
+          <img src="${machineNode.photo_b64}" style="pointer-events:none;max-height:70px;width:100%;object-fit:cover;display:block;">
+          ${pinHTML}
+        </div>`;
+    }
+
+    // ===================================================================
+    // STATUS COLOR CYCLING
+    // ===================================================================
+    function cycleStatus(nodeId, e) {
+      e.stopPropagation();
+      const node = diagData.nodes[nodeId];
+      if (!node) return;
+      const curr = node.status_color || "gray";
+      const idx = STATUS_LABELS.indexOf(curr);
+      const next = STATUS_LABELS[(idx + 1) % STATUS_LABELS.length];
+      triggerAction({ action: "change_status", node_id: nodeId, color: next });
+    }
+
+    // ===================================================================
+    // FOLD / UNFOLD
+    // ===================================================================
+    function toggleFold(nodeId) {
+      foldedNodes[nodeId] = !foldedNodes[nodeId];
+      render();
+    }
+
+    // ===================================================================
+    // DOUBLE-CLICK LIGHTBOX
+    // ===================================================================
+    function handleCardDblClick(nodeId) {
+      const node = diagData.nodes[nodeId];
+      if (!node) return;
+      let imgSrc = null;
+      if (node.type === "machine" && node.photo_b64) imgSrc = node.photo_b64;
+      if (node.type === "point") {
+        const parent = diagData.nodes[node.parent_id];
+        if (parent && parent.photo_b64) imgSrc = parent.photo_b64;
+      }
+      if (imgSrc) openLightbox(imgSrc);
+    }
+
+    function openLightbox(src) {
+      const lb = document.createElement("div");
+      lb.className = "lightbox";
+      lb.innerHTML = `<img src="${src}"><button class="close-btn" onclick="this.parentElement.remove()">✕</button>`;
+      lb.addEventListener("click", (e) => { if (e.target === lb) lb.remove(); });
+      document.body.appendChild(lb);
+    }
+
+    // ===================================================================
+    // MODAL SYSTEM
+    // ===================================================================
+    let modalPins = [];       // temp pins during machine add
+    let modalPhotoB64 = "";   // temp photo during machine/point add
+    let modalSensorB64 = "";  // temp sensor photo during point add
+    let modalSelectedPin = -1;// temp selected pin during point add
+
+    function showModal(html) {
+      // Remove existing modal
+      const existing = document.getElementById("global-modal");
+      if (existing) existing.remove();
+      const overlay = document.createElement("div");
+      overlay.id = "global-modal";
+      overlay.className = "modal-overlay";
+      overlay.innerHTML = `<div class="modal-box">${html}</div>`;
+      overlay.addEventListener("click", (e) => { if (e.target === overlay) closeModal(); });
+      document.body.appendChild(overlay);
+    }
+    function closeModal() {
+      const m = document.getElementById("global-modal");
+      if (m) m.remove();
+      modalPins = [];
+      modalPhotoB64 = "";
+      modalSensorB64 = "";
+      modalSelectedPin = -1;
+    }
+
+    // ----- ADD PLANT MODAL -----
+    function openAddPlantModal() {
+      const nodes = diagData.nodes || {};
+      const companies = Object.values(nodes).filter(n => n.type === "company");
+      let companyOpts = `<option value="__new__">➕ Add New Company</option>`;
+      for (const c of companies) {
+        companyOpts += `<option value="${c.id}">${escHtml(c.name)}</option>`;
+      }
+      showModal(`
+        <h3>🏭 Add Plant</h3>
+        <label>Plant Name *</label>
+        <input type="text" id="m-plant-name" placeholder="e.g., MGDC">
+        <label>Company *</label>
+        <select id="m-plant-company" onchange="toggleNewCompany()">${companyOpts}</select>
+        <div id="new-company-group">
+          <label>New Company Name *</label>
+          <input type="text" id="m-company-name" placeholder="e.g., RITEC">
+        </div>
+        <label>Location *</label>
+        <input type="text" id="m-plant-location" placeholder="e.g., Giza">
+        <div class="btn-row">
+          <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+          <button class="btn-primary" onclick="submitAddPlant()">Add Plant</button>
+        </div>
+      `);
+    }
+    function toggleNewCompany() {
+      const sel = document.getElementById("m-plant-company");
+      const grp = document.getElementById("new-company-group");
+      grp.style.display = sel.value === "__new__" ? "block" : "none";
+    }
+    function submitAddPlant() {
+      const name = document.getElementById("m-plant-name").value.trim();
+      const companySel = document.getElementById("m-plant-company").value;
+      const location = document.getElementById("m-plant-location").value.trim();
+      if (!name) return alert("Please enter a plant name.");
+      if (!location) return alert("Please enter a location.");
+      let company_id = null, company_name = "";
+      if (companySel === "__new__") {
+        company_name = document.getElementById("m-company-name").value.trim();
+        if (!company_name) return alert("Please enter a company name.");
+      } else {
+        company_id = companySel;
+      }
+      triggerAction({ action: "add_plant", data: { name, company_id, company_name, location } });
+      closeModal();
+    }
+
+    // ----- ADD CHILD MODAL (routes to correct sub-modal) -----
+    function openAddChildModal(parentId) {
+      const node = diagData.nodes[parentId];
+      if (!node) return;
+      const childType = CHILD_TYPE[node.type];
+      if (childType === "plant") openAddPlantUnderCompanyModal(parentId);
+      else if (childType === "zone") openAddZoneModal(parentId);
+      else if (childType === "machine") openAddMachineModal(parentId);
+      else if (childType === "point") openAddPointModal(parentId);
+    }
+
+    // ----- ADD PLANT UNDER EXISTING COMPANY -----
+    function openAddPlantUnderCompanyModal(companyId) {
+      const company = diagData.nodes[companyId];
+      showModal(`
+        <h3>🏭 Add Plant under ${escHtml(company.name)}</h3>
+        <label>Plant Name *</label>
+        <input type="text" id="m-plant-name" placeholder="e.g., MGDC">
+        <label>Location *</label>
+        <input type="text" id="m-plant-location" placeholder="e.g., Giza">
+        <div class="btn-row">
+          <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+          <button class="btn-primary" onclick="submitAddPlantUnder('${companyId}')">Add Plant</button>
+        </div>
+      `);
+    }
+    function submitAddPlantUnder(companyId) {
+      const name = document.getElementById("m-plant-name").value.trim();
+      const location = document.getElementById("m-plant-location").value.trim();
+      if (!name || !location) return alert("Please fill all fields.");
+      triggerAction({ action: "add_plant", data: { name, company_id: companyId, location } });
+      closeModal();
+    }
+
+    // ----- ADD ZONE MODAL -----
+    function openAddZoneModal(parentId) {
+      const parent = diagData.nodes[parentId];
+      showModal(`
+        <h3>📁 Add Zone/Area under ${escHtml(parent.name)}</h3>
+        <label>Zone/Area Name *</label>
+        <input type="text" id="m-zone-name" placeholder="e.g., Compressors">
+        <div class="btn-row">
+          <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+          <button class="btn-primary" onclick="submitAddZone('${parentId}')">Add Zone</button>
+        </div>
+      `);
+    }
+    function submitAddZone(parentId) {
+      const name = document.getElementById("m-zone-name").value.trim();
+      if (!name) return alert("Please enter a name.");
+      triggerAction({ action: "add_zone", parent_id: parentId, data: { name } });
+      closeModal();
+    }
+
+    // ----- ADD MACHINE MODAL (with photo + pin placement) -----
+    function openAddMachineModal(parentId) {
+      const parent = diagData.nodes[parentId];
+      modalPins = [];
+      modalPhotoB64 = "";
+      showModal(`
+        <h3>⚙️ Add Machine under ${escHtml(parent.name)}</h3>
+        <label>Machine Name *</label>
+        <input type="text" id="m-mach-name" placeholder="e.g., A-341A Depropanizer">
+        <label>Machine Photo</label>
+        <div class="photo-upload-area" id="mach-photo-area">
+          <input type="file" accept="image/*" onchange="handleMachPhotoUpload(this)">
+          <p style="color:#94a3b8;font-size:13px;margin:0;">Click to upload photo</p>
+        </div>
+        <div id="mach-pin-section" style="display:none;">
+          <label>Click on the photo to place measurement points</label>
+          <div class="pin-canvas-wrap" id="mach-pin-wrap" onclick="handleMachPinClick(event)">
+            <img id="mach-pin-img" src="">
+          </div>
+          <div style="display:flex;gap:8px;margin-top:6px;">
+            <button class="btn-cancel" onclick="undoMachPin()" style="flex:0;padding:6px 14px;font-size:12px;">↩ Undo Pin</button>
+            <span id="pin-count" style="font-size:12px;color:#64748b;line-height:34px;">0 pins placed</span>
+          </div>
+        </div>
+        <label>Nominal Speed (Hz)</label>
+        <input type="number" id="m-mach-speed" value="0" min="0" step="0.1">
+        <label>Vibration Category</label>
+        <select id="m-mach-vib">${VIB_CATS.map(v => `<option>${v}</option>`).join("")}</select>
+        <label>Operational Significance</label>
+        <select id="m-mach-op">${OP_SIGS.map(v => `<option>${v}</option>`).join("")}</select>
+        <div class="btn-row">
+          <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+          <button class="btn-primary" onclick="submitAddMachine('${parentId}')">Add Machine</button>
+        </div>
+      `);
+    }
+    function handleMachPhotoUpload(input) {
+      const file = input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        modalPhotoB64 = e.target.result;
+        modalPins = [];
+        const area = document.getElementById("mach-photo-area");
+        area.innerHTML = `<img src="${modalPhotoB64}" style="max-height:120px;border-radius:8px;">
+          <input type="file" accept="image/*" onchange="handleMachPhotoUpload(this)">`;
+        const section = document.getElementById("mach-pin-section");
+        section.style.display = "block";
+        document.getElementById("mach-pin-img").src = modalPhotoB64;
+        updatePinDisplay();
+      };
+      reader.readAsDataURL(file);
+    }
+    function handleMachPinClick(e) {
+      const wrap = document.getElementById("mach-pin-wrap");
+      const img = document.getElementById("mach-pin-img");
+      const rect = img.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = (e.clientY - rect.top) / rect.height;
+      if (x < 0 || x > 1 || y < 0 || y > 1) return;
+      modalPins.push({ x, y });
+      updatePinDisplay();
+    }
+    function undoMachPin() {
+      modalPins.pop();
+      updatePinDisplay();
+    }
+    function updatePinDisplay() {
+      const wrap = document.getElementById("mach-pin-wrap");
+      if (!wrap) return;
+      wrap.querySelectorAll(".pin-dot").forEach(p => p.remove());
+      for (let i = 0; i < modalPins.length; i++) {
+        const dot = document.createElement("div");
+        dot.className = "pin-dot";
+        dot.style.left = (modalPins[i].x * 100) + "%";
+        dot.style.top = (modalPins[i].y * 100) + "%";
+        dot.textContent = i + 1;
+        wrap.appendChild(dot);
+      }
+      const cnt = document.getElementById("pin-count");
+      if (cnt) cnt.textContent = `${modalPins.length} pin(s) placed`;
+    }
+    function submitAddMachine(parentId) {
+      const name = document.getElementById("m-mach-name").value.trim();
+      if (!name) return alert("Please enter a machine name.");
+      const speed = parseFloat(document.getElementById("m-mach-speed").value) || 0;
+      const vib = document.getElementById("m-mach-vib").value;
+      const op = document.getElementById("m-mach-op").value;
+      triggerAction({
+        action: "add_machine", parent_id: parentId,
+        data: { name, photo_b64: modalPhotoB64, pins: modalPins, nominal_speed: speed, vib_category: vib, op_significance: op }
+      });
+      closeModal();
+    }
+
+    // ----- ADD POINT MODAL (select pin on machine photo) -----
+    function openAddPointModal(parentId) {
+      const machine = diagData.nodes[parentId];
+      if (!machine) return;
+      modalSelectedPin = -1;
+      const pins = machine.pins || [];
+      // Determine which pins are already assigned to existing points
+      const assignedPins = new Set();
+      for (const cid of (machine.children || [])) {
+        const child = diagData.nodes[cid];
+        if (child && child.pin_index >= 0) assignedPins.add(child.pin_index);
+      }
+      let pinsHTML = "";
+      for (let i = 0; i < pins.length; i++) {
+        const cls = assignedPins.has(i) ? "pin-dot assigned" : "pin-dot selectable";
+        const onclick = assignedPins.has(i) ? "" : `onclick="selectPointPin(${i}, event)"`;
+        pinsHTML += `<div class="${cls}" id="pt-pin-${i}" style="left:${pins[i].x*100}%;top:${pins[i].y*100}%" ${onclick}>${i+1}</div>`;
+      }
+
+      let photoSection = "";
+      if (machine.photo_b64 && pins.length > 0) {
+        photoSection = `
+          <label>Select which pin belongs to this point</label>
+          <div class="pin-canvas-wrap" style="cursor:default;">
+            <img src="${machine.photo_b64}" style="pointer-events:none;max-height:200px;display:block;">
+            ${pinsHTML}
+          </div>
+          <p id="selected-pin-text" style="font-size:12px;color:#64748b;margin-top:4px;">No pin selected</p>`;
+      } else if (machine.photo_b64) {
+        photoSection = `<p style="font-size:13px;color:#f97316;">⚠️ No pins placed on the machine photo. Go back and edit the machine to add pins first.</p>`;
+      } else {
+        photoSection = `<p style="font-size:13px;color:#94a3b8;">No machine photo uploaded.</p>`;
+      }
+
+      showModal(`
+        <h3>📍 Add Point under ${escHtml(machine.name)}</h3>
+        <label>Point Name *</label>
+        <input type="text" id="m-pt-name" placeholder="e.g., MNDE, MDE, FDE...">
+        ${photoSection}
+        <label>Sensor Photo (optional)</label>
+        <div class="photo-upload-area" id="sensor-photo-area">
+          <input type="file" accept="image/*" onchange="handleSensorPhotoUpload(this)">
+          <p style="color:#94a3b8;font-size:13px;margin:0;">Click to upload sensor photo</p>
+        </div>
+        <label>Sensor Technical Name</label>
+        <input type="text" id="m-pt-sensor" placeholder="e.g., ICP-100">
+        <div class="btn-row">
+          <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+          <button class="btn-primary" onclick="submitAddPoint('${parentId}')">Add Point</button>
+        </div>
+      `);
+    }
+    function selectPointPin(index, e) {
+      e.stopPropagation();
+      modalSelectedPin = index;
+      document.querySelectorAll("[id^='pt-pin-']").forEach(el => {
+        if (el.classList.contains("assigned")) return;
+        el.classList.remove("selected");
+        el.classList.add("selectable");
+      });
+      const el = document.getElementById(`pt-pin-${index}`);
+      if (el) { el.classList.remove("selectable"); el.classList.add("selected"); }
+      const txt = document.getElementById("selected-pin-text");
+      if (txt) txt.textContent = `Selected: Pin ${index + 1}`;
+    }
+    function handleSensorPhotoUpload(input) {
+      const file = input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        modalSensorB64 = e.target.result;
+        const area = document.getElementById("sensor-photo-area");
+        area.innerHTML = `<img src="${modalSensorB64}" style="max-height:100px;border-radius:8px;">
+          <input type="file" accept="image/*" onchange="handleSensorPhotoUpload(this)">`;
+      };
+      reader.readAsDataURL(file);
+    }
+    function submitAddPoint(parentId) {
+      const name = document.getElementById("m-pt-name").value.trim();
+      if (!name) return alert("Please enter a point name.");
+      const sensorName = document.getElementById("m-pt-sensor").value.trim();
+      triggerAction({
+        action: "add_point", parent_id: parentId,
+        data: { name, pin_index: modalSelectedPin, sensor_photo_b64: modalSensorB64, sensor_name: sensorName }
+      });
+      closeModal();
+    }
+
+    // ----- EDIT MODAL -----
+    function openEditModal(nodeId) {
+      const node = diagData.nodes[nodeId];
+      if (!node) return;
+      let fields = "";
+      if (node.type === "company") {
+        fields = `<label>Company Name</label><input type="text" id="m-edit-name" value="${escAttr(node.name)}">`;
+      } else if (node.type === "plant") {
+        fields = `
+          <label>Plant Name</label><input type="text" id="m-edit-name" value="${escAttr(node.name)}">
+          <label>Location</label><input type="text" id="m-edit-location" value="${escAttr(node.location || '')}">`;
+      } else if (node.type === "zone") {
+        fields = `<label>Zone/Area Name</label><input type="text" id="m-edit-name" value="${escAttr(node.name)}">`;
+      } else if (node.type === "machine") {
+        fields = `
+          <label>Machine Name</label><input type="text" id="m-edit-name" value="${escAttr(node.name)}">
+          <label>Nominal Speed (Hz)</label><input type="number" id="m-edit-speed" value="${node.nominal_speed || 0}" min="0" step="0.1">
+          <label>Vibration Category</label>
+          <select id="m-edit-vib">${VIB_CATS.map(v => `<option${v === node.vib_category ? ' selected' : ''}>${v}</option>`).join("")}</select>
+          <label>Operational Significance</label>
+          <select id="m-edit-op">${OP_SIGS.map(v => `<option${v === node.op_significance ? ' selected' : ''}>${v}</option>`).join("")}</select>`;
+      } else if (node.type === "point") {
+        fields = `
+          <label>Point Name</label><input type="text" id="m-edit-name" value="${escAttr(node.name)}">
+          <label>Sensor Technical Name</label><input type="text" id="m-edit-sensor" value="${escAttr(node.sensor_name || '')}">`;
+      }
+      showModal(`
+        <h3>✏️ Edit ${TYPE_LABELS[node.type]}</h3>
+        ${fields}
+        <div class="btn-row">
+          <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+          <button class="btn-primary" onclick="submitEdit('${nodeId}', '${node.type}')">Save</button>
+        </div>
+      `);
+    }
+    function submitEdit(nodeId, type) {
+      const data = {};
+      const nameEl = document.getElementById("m-edit-name");
+      if (nameEl) data.name = nameEl.value.trim();
+      if (type === "plant") {
+        const locEl = document.getElementById("m-edit-location");
+        if (locEl) data.location = locEl.value.trim();
+      }
+      if (type === "machine") {
+        const spEl = document.getElementById("m-edit-speed");
+        if (spEl) data.nominal_speed = parseFloat(spEl.value) || 0;
+        const vibEl = document.getElementById("m-edit-vib");
+        if (vibEl) data.vib_category = vibEl.value;
+        const opEl = document.getElementById("m-edit-op");
+        if (opEl) data.op_significance = opEl.value;
+      }
+      if (type === "point") {
+        const snEl = document.getElementById("m-edit-sensor");
+        if (snEl) data.sensor_name = snEl.value.trim();
+      }
+      if (!data.name) return alert("Name cannot be empty.");
+      triggerAction({ action: "edit", node_id: nodeId, data });
+      closeModal();
+    }
+
+    // ----- DELETE CONFIRMATION MODAL -----
+    function openDeleteModal(nodeId) {
+      const node = diagData.nodes[nodeId];
+      if (!node) return;
+      const childCount = countDescendants(nodeId);
+      const warn = childCount > 0 ? `<p style="color:#ef4444;font-size:13px;margin-top:8px;">⚠️ This will also delete ${childCount} item(s) below it.</p>` : "";
+      showModal(`
+        <h3>🗑️ Delete ${TYPE_LABELS[node.type]}</h3>
+        <p>Are you sure you want to delete <strong>${escHtml(node.name)}</strong>?</p>
+        ${warn}
+        <div class="btn-row">
+          <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+          <button class="btn-danger" onclick="confirmDelete('${nodeId}')">Delete</button>
+        </div>
+      `);
+    }
+    function confirmDelete(nodeId) {
+      triggerAction({ action: "delete", node_id: nodeId });
+      closeModal();
+    }
+    function countDescendants(nodeId) {
+      const node = diagData.nodes[nodeId];
+      if (!node) return 0;
+      let count = 0;
+      for (const cid of (node.children || [])) {
+        count += 1 + countDescendants(cid);
+      }
+      return count;
+    }
+
+    // ===================================================================
+    // SEARCH
+    // ===================================================================
+    function renderSearchBar() {
+      return `
+        <div class="search-container">
+          <input type="text" id="search-input" placeholder="Search cards..." value="${escAttr(searchQuery)}"
+                 onkeydown="if(event.key==='Enter')doSearch()">
+          <button onclick="doSearch()" title="Search">🔍</button>
+          ${searchQuery ? '<button onclick="clearSearch()" title="Clear">✕</button>' : ''}
+        </div>`;
+    }
+    function doSearch() {
+      const input = document.getElementById("search-input");
+      searchQuery = (input ? input.value : "").trim();
+      render();
+    }
+    function clearSearch() {
+      searchQuery = "";
+      render();
+    }
+    function getSearchVisibleSet(query) {
+      const q = query.toLowerCase();
+      const visible = new Set();
+      const nodes = diagData.nodes || {};
+      // Find matching nodes and add them + all ancestors
+      for (const [nid, node] of Object.entries(nodes)) {
+        if (node.name.toLowerCase().includes(q)) {
+          // Add this node and all ancestors
+          let current = nid;
+          while (current) {
+            visible.add(current);
+            current = nodes[current] ? nodes[current].parent_id : null;
+          }
+        }
+      }
+      return visible;
+    }
+
+    // ===================================================================
+    // MINIMAP
+    // ===================================================================
+    function renderMinimapContainer() {
+      return `<div class="minimap-container" id="minimap-box"><canvas id="minimap-canvas"></canvas><div class="minimap-viewport" id="minimap-vp"></div></div>`;
+    }
+    function initMinimap() {
+      const scroll = document.getElementById("chart-scroll");
+      const canvas = document.getElementById("minimap-canvas");
+      const vp = document.getElementById("minimap-vp");
+      if (!scroll || !canvas || !vp) return;
+
+      const ctx = canvas.getContext("2d");
+      const mmBox = document.getElementById("minimap-box");
+      const mmW = mmBox.offsetWidth;
+      const mmH = mmBox.offsetHeight;
+      canvas.width = mmW;
+      canvas.height = mmH;
+
+      function updateMinimap() {
+        const contentW = scroll.scrollWidth;
+        const contentH = scroll.scrollHeight;
+        const viewW = scroll.clientWidth;
+        const viewH = scroll.clientHeight;
+        const scaleX = mmW / contentW;
+        const scaleY = mmH / contentH;
+        const scale = Math.min(scaleX, scaleY);
+
+        // Draw mini cards
+        ctx.clearRect(0, 0, mmW, mmH);
+        ctx.fillStyle = "#f8fafc";
+        ctx.fillRect(0, 0, mmW, mmH);
+        const cards = scroll.querySelectorAll(".node-card");
+        cards.forEach(card => {
+          const rect = card.getBoundingClientRect();
+          const scrollRect = scroll.getBoundingClientRect();
+          const x = (rect.left - scrollRect.left + scroll.scrollLeft) * scale;
+          const y = (rect.top - scrollRect.top + scroll.scrollTop) * scale;
+          const w = rect.width * scale;
+          const h = rect.height * scale;
+          const type = card.dataset.type;
+          ctx.fillStyle = LEVEL_COLORS[type] || "#94a3b8";
+          ctx.globalAlpha = 0.6;
+          ctx.fillRect(x, y, Math.max(w, 3), Math.max(h, 2));
+          ctx.globalAlpha = 1;
+        });
+
+        // Viewport rectangle
+        vp.style.left = (scroll.scrollLeft * scale) + "px";
+        vp.style.top = (scroll.scrollTop * scale) + "px";
+        vp.style.width = Math.min(viewW * scale, mmW) + "px";
+        vp.style.height = Math.min(viewH * scale, mmH) + "px";
+      }
+
+      scroll.addEventListener("scroll", updateMinimap);
+      setTimeout(updateMinimap, 100);
+
+      // Draggable viewport
+      let dragging = false;
+      let dragStartX, dragStartY, startScrollLeft, startScrollTop;
+      vp.addEventListener("mousedown", (e) => {
+        dragging = true;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        startScrollLeft = scroll.scrollLeft;
+        startScrollTop = scroll.scrollTop;
+        e.preventDefault();
+      });
+      document.addEventListener("mousemove", (e) => {
+        if (!dragging) return;
+        const contentW = scroll.scrollWidth;
+        const contentH = scroll.scrollHeight;
+        const scaleX = mmW / contentW;
+        const scaleY = mmH / contentH;
+        const scale = Math.min(scaleX, scaleY);
+        const dx = (e.clientX - dragStartX) / scale;
+        const dy = (e.clientY - dragStartY) / scale;
+        scroll.scrollLeft = startScrollLeft + dx;
+        scroll.scrollTop = startScrollTop + dy;
+      });
+      document.addEventListener("mouseup", () => { dragging = false; });
+    }
+
+    // ===================================================================
+    // POINT DETAIL VIEW
+    // ===================================================================
+    function renderPointDetailView() {
+      if (!pointData || !breadcrumb.length) return "";
+
+      // Breadcrumb
+      let bcHTML = `<a onclick="triggerAction({action:'go_main'})" style="cursor:pointer;">🏠</a>`;
+      for (let i = 0; i < breadcrumb.length; i++) {
+        const b = breadcrumb[i];
+        bcHTML += `<span class="sep">›</span>`;
+        if (i < breadcrumb.length - 1) {
+          bcHTML += `<a onclick="triggerAction({action:'go_main'})">${escHtml(b.name)}</a>`;
+        } else {
+          bcHTML += `<span class="current">${escHtml(b.name)}</span>`;
+        }
+      }
+
+      // Tabs
+      const tabs = [
+        { id: "trend", label: "Trend" },
+        { id: "time_waveform", label: "Time Waveform" },
+        { id: "spectrum", label: "Spectrum" },
+        { id: "avg_spectrum", label: "Average Spectrum" },
+        { id: "demod_spectrum", label: "Demod Spectrum" },
+        { id: "impact_demod", label: "Impact Demodulation" }
+      ];
+      let tabsHTML = "";
+      for (const t of tabs) {
+        tabsHTML += `<button class="tab-btn${activeTab === t.id ? ' active' : ''}" onclick="switchTab('${t.id}')">${t.label}</button>`;
+      }
+
+      // Tab content
+      let contentHTML = "";
+      const readings = pointData.readings || {};
+      const hasAnyReading = Object.keys(readings).length > 0;
+
+      if (activeTab === "time_waveform") {
+        contentHTML = renderAxisCharts(readings, "time_waveform");
+      } else if (activeTab === "spectrum") {
+        contentHTML = renderAxisCharts(readings, "spectrum");
+      } else {
+        contentHTML = renderComingSoon();
+      }
+
+      return `
+        <div class="point-detail">
+          <div class="breadcrumb">${bcHTML}</div>
+          <div class="tabs-bar">${tabsHTML}</div>
+          <div class="tab-content" id="tab-content">${contentHTML}</div>
+        </div>`;
+    }
+
+    function renderAxisCharts(readings, chartType) {
+      const axes = Object.keys(readings);
+      if (axes.length === 0) {
+        return renderComingSoon("No readings taken yet for any axis.");
+      }
+
+      let html = "";
+      for (const axis of axes) {
+        const data = readings[axis];
+        if (!data) continue;
+
+        if (chartType === "time_waveform" && data.time_waveform && data.time_waveform.length > 0) {
+          const sr = data.sr || 2560;
+          const rms = computeRMS(data.time_waveform);
+          const peak = Math.max(...data.time_waveform.map(Math.abs));
+          const p2p = Math.max(...data.time_waveform) - Math.min(...data.time_waveform);
+          const crest = peak / (rms || 1);
+          html += `
+            <div class="axis-section">
+              <div class="axis-label">${escHtml(axis)} — G</div>
+              <div class="axis-stats">RMS: ${rms.toFixed(3)} G, Peak: ${peak.toFixed(3)} G, Peak to Peak: ${p2p.toFixed(3)} G, Crest Factor: ${crest.toFixed(3)}</div>
+              <div id="chart-tw-${axis.replace(/\s/g,'_')}" style="width:100%;height:280px;"></div>
+            </div>`;
+        } else if (chartType === "spectrum" && data.spectrum_freq && data.spectrum_freq.length > 0) {
+          html += `
+            <div class="axis-section">
+              <div class="axis-label">${escHtml(axis)} — Spectrum</div>
+              <div id="chart-sp-${axis.replace(/\s/g,'_')}" style="width:100%;height:280px;"></div>
+            </div>`;
+        }
+      }
+
+      // Show "Coming soon" for axes without data
+      const allAxes = ["H Axis", "V Axis", "A Axis", "X Axis", "Y Axis", "Z Axis"];
+      for (const ax of allAxes) {
+        if (axes.includes(ax)) continue;
+        // Only show for common axes that user might expect
+        if (["H Axis", "V Axis", "A Axis"].includes(ax)) {
+          html += `<div class="axis-section"><div class="axis-label">${ax}</div><div class="coming-soon" style="padding:20px;">🚧 Coming Soon — No reading for this axis yet</div></div>`;
+        }
+      }
+
+      return html || renderComingSoon("No data for this chart type.");
+    }
+
+    function renderComingSoon(msg) {
+      return `
+        <div class="coming-soon">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+          </svg>
+          <p>🚧 ${msg || 'Coming Soon'}</p>
+        </div>`;
+    }
+
+    function switchTab(tabId) {
+      activeTab = tabId;
+      render();
+    }
+
+    function initPointDetailCharts() {
+      if (!pointData) return;
+      const readings = pointData.readings || {};
+
+      for (const [axis, data] of Object.entries(readings)) {
+        const safeAxis = axis.replace(/\s/g, '_');
+
+        // Time Waveform chart
+        if (activeTab === "time_waveform" && data.time_waveform && data.time_waveform.length > 0) {
+          const sr = data.sr || 2560;
+          const tArr = data.time_waveform.map((_, i) => (i / sr) * 1000);
+          const el = document.getElementById(`chart-tw-${safeAxis}`);
+          if (el && typeof Plotly !== 'undefined') {
+            Plotly.newPlot(el, [{
+              x: tArr, y: data.time_waveform,
+              type: 'scatter', mode: 'lines',
+              line: { color: '#3b82f6', width: 1 }
+            }], {
+              xaxis: { title: 'Time (ms)' },
+              yaxis: { title: 'G' },
+              margin: { l: 50, r: 20, t: 10, b: 40 },
+              paper_bgcolor: 'transparent',
+              plot_bgcolor: '#f8fafc'
+            }, { responsive: true });
+          }
+        }
+
+        // Spectrum chart
+        if (activeTab === "spectrum" && data.spectrum_freq && data.spectrum_freq.length > 0) {
+          const el = document.getElementById(`chart-sp-${safeAxis}`);
+          if (el && typeof Plotly !== 'undefined') {
+            Plotly.newPlot(el, [{
+              x: data.spectrum_freq, y: data.spectrum_amp,
+              type: 'scatter', mode: 'lines',
+              line: { color: '#3b82f6', width: 1 }
+            }], {
+              xaxis: { title: 'Frequency (Hz)' },
+              yaxis: { title: 'Amplitude (g)' },
+              margin: { l: 50, r: 20, t: 10, b: 40 },
+              paper_bgcolor: 'transparent',
+              plot_bgcolor: '#f8fafc'
+            }, { responsive: true });
+          }
+        }
+      }
+    }
+
+    function computeRMS(arr) {
+      if (!arr || arr.length === 0) return 0;
+      let sum = 0;
+      for (let i = 0; i < arr.length; i++) sum += arr[i] * arr[i];
+      return Math.sqrt(sum / arr.length);
+    }
+
+    // ===================================================================
+    // UTILITIES
+    // ===================================================================
+    function escHtml(s) { return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+    function escAttr(s) { return String(s || "").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
+  </script>
+</body>
+</html>

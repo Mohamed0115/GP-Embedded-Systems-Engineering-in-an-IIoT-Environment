@@ -5,10 +5,12 @@ import plotly.graph_objects as go
 import time
 import datetime
 import asyncio
+import threading
 import base64
 import os
 from core.state_manager import get_user_data, add_to_history
-from core.utils import compute_fft, compute_rms
+from core.utils import compute_fft, compute_rms, convert_fft_units
+from views.new_diagnosis import get_all_points_for_selector
 
 # ===== Scaling formula based on Manual Chapter 5.5 =====
 # Acceleration (g) = (Raw * 10000.0) / (8388608.0 * Gain * Sensitivity)
@@ -32,11 +34,11 @@ def log_gateway_transaction(command, response, status="Success"):
 # ===== Run single channel data acquisition =====
 # Sends CH, GA, SP, SR, TO, TL commands to the ITA-110 gateway,
 # then acquires data with AQ and reads back with BD? command.
-def acquire_channel_data(ip, port, channel, gain, measurement_type, sensitivity, fmax, lines):
-    # Map measurement type to SP (Signal Path)
-    # Velocity = 6 (hardware integrator + highpass filter per Chapter 5.6)
-    # All other types = 1 (raw signal)
-    sp = 6 if measurement_type.lower() == "velocity" else 1
+# signal_path: SP value from config (1=Raw, 2=Band Filtered, 3=Demod, 5=HPF, 6=HW HPF)
+def acquire_channel_data(ip, port, channel, gain, measurement_type, sensitivity, fmax, lines, signal_path=1):
+    # Use the SP value from the saved channel config
+    # Default: SP=1 (Raw Data) unless explicitly set by user in config dialog
+    sp = int(signal_path)
     
     # Map F1max (bandwidth) to SR (sample rate) per Chapter 5.1:
     # SR = BW × 2.56
@@ -304,10 +306,13 @@ def gateways_view():
                     time.sleep(1)
                     st.rerun()
 
-    # ===== Change 8: Improved Configure Channel dialog =====
+    # ===== Enhanced Configure Channel dialog =====
     # Follows ITA-110 Manual Chapter 5 for proper acquisition parameters.
-    # Dynamic types: Acceleration, Velocity, Displacement use AQ command with Gain, Sensitivity, Fmax, Lines
-    # Static types: Temperature, Pressure use AP command with Sensitivity only (no gain/fmax/lines)
+    # Dynamic types: Acceleration, Velocity, Displacement use AQ command
+    # Static types: Temperature, Pressure use AP command
+    # Signal Path (SP) values per Manual:
+    #   1=Raw Data, 2=Band Filtered, 3=Bearing Demodulator,
+    #   5=Highpass Filter, 6=Hardware Highpass Filter
     @st.dialog("⚙️ Configure Channel", width="medium")
     def configure_channel_dialog(gw_ip, ch_num):
         key = (gw_ip, ch_num)
@@ -316,39 +321,82 @@ def gateways_view():
         st.markdown(f"#### Configure Channel **CH{ch_num}**")
         st.caption(f"Gateway: {gw_ip}")
         
-        st.text_input("Location (Area - Machine - Point) *", value="Production Floor A", disabled=True)
+        # ===== Location: select a real Point from the Diagnosis hierarchy =====
+        point_options = get_all_points_for_selector()
+        point_display = ["Select point..."] + [p[1] for p in point_options]
+        point_ids = [None] + [p[0] for p in point_options]
+        curr_point_id = curr_config.get("point_id")
+        curr_point_idx = 0
+        if curr_point_id and curr_point_id in point_ids:
+            curr_point_idx = point_ids.index(curr_point_id)
+        loc_sel = st.selectbox("Location (Machine - Point) *", options=point_display, index=curr_point_idx)
         
+        # ===== Measurement Type selection =====
         types = ["Select measurement type", "Acceleration", "Velocity", "Displacement", "Temperature", "Pressure"]
         curr_type = curr_config.get("type", "Select measurement type")
         type_idx = types.index(curr_type) if curr_type in types else 0
         m_type = st.selectbox("Measurement Type *", options=types, index=type_idx)
         
-        # Dynamic template based on measurement type
+        # Categorize measurement type
         is_dynamic = m_type in ["Acceleration", "Velocity", "Displacement"]
         is_static = m_type in ["Temperature", "Pressure"]
+        # Acceleration and Displacement get Axis + optional filters
+        needs_axis = m_type in ["Acceleration", "Displacement"]
         
+        # Default values for all config fields
         gain_val = "1"
         sensitivity_val = 100.0
         unit_val = "mV"
         fmax_val = 1000
         lines_val = 400
+        signal_path_val = 1      # SP value sent to ITA-110
+        axis_val = None           # Only for Acceleration/Displacement
+        hpf_val = None            # Optional High Pass Filter
+        bpf_val = None            # Optional Bandpass Filter
         
         if is_dynamic:
-            # ===== Dynamic measurement: show Gain, Sensitivity, Fmax, Lines =====
+            # ===== AXIS selector for Acceleration & Displacement =====
+            if needs_axis:
+                axis_options = ["Select axis", "X Axis", "Y Axis", "Z Axis",
+                                "H Axis (Horizontal)", "V Axis (Vertical)", "A Axis (Axial)"]
+                curr_axis = curr_config.get("axis", "Select axis")
+                axis_idx = axis_options.index(curr_axis) if curr_axis in axis_options else 0
+                axis_val = st.selectbox("Axis *", options=axis_options, index=axis_idx,
+                                         help="Physical orientation of the sensor on the machine.")
             
-            # Velocity uses hardware integrator (SP=6), so show a note
-            if m_type == "Velocity":
-                st.info("ℹ️ Velocity uses the hardware integrator (SP=6) to convert acceleration to velocity. See Manual Chapter 5.6.")
+            # ===== SIGNAL PATH selector (SP command) per Manual Chapter 5.6 =====
+            # Maps user-friendly labels to the ITA-110 SP integer values
+            sp_options = {
+                "Select signal path": 0,
+                "Raw Data": 1,
+                "Band Filtered": 2,
+                "Bearing Demodulator": 3,
+                "Highpass Filter": 5,
+                "Hardware Highpass Filter": 6
+            }
+            sp_labels = list(sp_options.keys())
+            curr_sp = curr_config.get("signal_path_sp", 0)
+            # Find the label matching the saved SP value
+            curr_sp_label = next((k for k, v in sp_options.items() if v == curr_sp), "Select signal path")
+            sp_idx = sp_labels.index(curr_sp_label) if curr_sp_label in sp_labels else 0
+            sp_selected = st.selectbox("Signal Path *", options=sp_labels, index=sp_idx,
+                                        help="Signal conditioning path in the ITA-110 hardware. "
+                                             "Raw=no filter, Band Filtered=BPF, Demod=envelope, "
+                                             "HPF=software highpass, HW HPF=hardware integrator+highpass (typical for Velocity).")
+            signal_path_val = sp_options[sp_selected]
             
+            # ===== GAIN selector =====
             gains = ["Select gain", "1", "2", "5", "10", "20", "50", "100"]
             curr_gain = curr_config.get("gain", "Select gain")
             gain_idx = gains.index(curr_gain) if curr_gain in gains else 0
             gain_val = st.selectbox("Gain *", options=gains, index=gain_idx,
                                      help="Gain multiplier for the ADC. Higher gain = more sensitivity but less range.")
             
+            # ===== SENSITIVITY + UNIT =====
             c_sens, c_unit = st.columns(2)
             with c_sens:
-                sensitivity_val = st.number_input("Sensitivity *", min_value=0.1, value=float(curr_config.get("sensitivity", 100.0)), step=0.1, placeholder="e.g., 100")
+                sensitivity_val = st.number_input("Sensitivity *", min_value=0.1,
+                    value=float(curr_config.get("sensitivity", 100.0)), step=0.1, placeholder="e.g., 100")
             with c_unit:
                 # Units depend on measurement type
                 if m_type == "Acceleration":
@@ -357,43 +405,87 @@ def gateways_view():
                     units = ["mV/mm/s", "mV"]
                 else:  # Displacement
                     units = ["mV/µm", "mV"]
-                    
                 unit_idx = 0
                 curr_unit = curr_config.get("unit", "")
                 if curr_unit in units:
                     unit_idx = units.index(curr_unit)
                 unit_val = st.selectbox("Sensitivity Unit *", options=units, index=unit_idx)
             
+            # ===== OPTIONAL FILTERS for Acceleration & Displacement =====
+            if needs_axis:
+                st.markdown("---")
+                st.markdown("##### Optional Filters")
+                
+                # High Pass Filter (optional) — per Manual Chapter 5
+                hpf_options = ["Select filter (optional)", "HPF 0.5 Hz", "HPF 2 Hz", "HPF 10 Hz", "HPF 100 Hz"]
+                curr_hpf = curr_config.get("hpf", "Select filter (optional)")
+                hpf_idx = hpf_options.index(curr_hpf) if curr_hpf in hpf_options else 0
+                hpf_val = st.selectbox("High Pass Filter (Optional)", options=hpf_options, index=hpf_idx,
+                                        help="Remove low-frequency noise below the cutoff frequency.")
+                if hpf_val == "Select filter (optional)":
+                    hpf_val = None
+                
+                # Bandpass Filter (optional)
+                bpf_options = [
+                    "Select filter (optional)",
+                    "Low: 50 Hz, High: 200 Hz",
+                    "Low: 200 Hz, High: 500 Hz",
+                    "Low: 500 Hz, High: 1,000 Hz",
+                    "Low: 600 Hz, High: 2,000 Hz",
+                    "Low: 1,000 Hz, High: 5,000 Hz",
+                    "Low: 2,000 Hz, High: 10,000 Hz",
+                    "Low: 5,000 Hz, High: 20,000 Hz",
+                    "Low: 10,000 Hz, High: 40,000 Hz",
+                    "Low: 20,000 Hz, High: 40,000 Hz"
+                ]
+                curr_bpf = curr_config.get("bpf", "Select filter (optional)")
+                bpf_idx = bpf_options.index(curr_bpf) if curr_bpf in bpf_options else 0
+                bpf_val = st.selectbox("Bandpass Filter (Optional)", options=bpf_options, index=bpf_idx,
+                                        help="Pass only frequencies within the specified range.")
+                if bpf_val == "Select filter (optional)":
+                    bpf_val = None
+            
+            # ===== ACQUISITION PARAMETERS (Fmax, Lines) =====
             st.markdown("---")
             st.markdown("##### Acquisition Parameters")
             c_fmax, c_lines = st.columns(2)
             with c_fmax:
-                # F1max options per Manual Chapter 5.1 — correspond to the 11 valid BW values
+                # F1max options per Manual Chapter 5.1
                 fmax_opts = [25, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 40000]
                 curr_fmax = curr_config.get("fmax", 1000)
                 fmax_idx = fmax_opts.index(curr_fmax) if curr_fmax in fmax_opts else 5
-                fmax_val = st.selectbox("F1max (Hz) *", options=fmax_opts, index=fmax_idx, help="Maximum frequency of interest (bandwidth)")
+                fmax_val = st.selectbox("F1max (Hz) *", options=fmax_opts, index=fmax_idx,
+                                         help="Maximum frequency of interest (bandwidth)")
             with c_lines:
-                # Spectral lines per Manual Chapter 5.2 — full set of valid values
+                # Spectral lines per Manual Chapter 5.2
                 lines_opts = [25, 50, 100, 200, 400, 800, 1600, 3200, 6400, 12800, 25600, 51200]
                 curr_lines = curr_config.get("lines", 400)
-                lines_idx = lines_opts.index(curr_lines) if curr_lines in lines_opts else 4  # default 400
-                lines_val = st.selectbox("Spectral Lines *", options=lines_opts, index=lines_idx, help="Number of spectral lines (resolution)")
+                lines_idx = lines_opts.index(curr_lines) if curr_lines in lines_opts else 4
+                lines_val = st.selectbox("Spectral Lines *", options=lines_opts, index=lines_idx,
+                                          help="Number of spectral lines (resolution)")
             
-            # Computed SR and TL per Chapter 5.1 and 5.2
+            # Computed SR, TL, and acquisition time
             sr_computed = int(fmax_val * 2.56)
             tl_computed = int(lines_val * 2.56)
-            # Acquisition time per Chapter 5.2: Taq = Lines / Bandwidth
             acq_time = lines_val / fmax_val
             st.info(f"SR = {sr_computed} Hz | TL = {tl_computed} samples | Acquisition Time ≈ {acq_time:.2f}s")
             
         elif is_static:
-            # ===== Static measurement: Sensitivity only, no Gain/Fmax/Lines =====
-            # Process measurements use AP command (not AQ), gain is always 1, per Manual Chapter 5.4
-            st.caption("Static measurement — uses AP command. No dynamic acquisition parameters needed.")
+            # ===== Static measurement: Temperature / Pressure =====
+            # Now includes Gain selector (previously missing)
+            st.caption("Static measurement — uses AP command for process parameters.")
+            
+            # Gain (now included for static types too)
+            gains = ["Select gain", "1", "2", "5", "10", "20", "50", "100"]
+            curr_gain = curr_config.get("gain", "Select gain")
+            gain_idx = gains.index(curr_gain) if curr_gain in gains else 0
+            gain_val = st.selectbox("Gain *", options=gains, index=gain_idx,
+                                     help="Gain multiplier for the ADC.")
+            
             c_sens, c_unit = st.columns(2)
             with c_sens:
-                sensitivity_val = st.number_input("Sensitivity *", min_value=0.1, value=float(curr_config.get("sensitivity", 100.0)), step=0.1, placeholder="e.g., 100")
+                sensitivity_val = st.number_input("Sensitivity *", min_value=0.1,
+                    value=float(curr_config.get("sensitivity", 100.0)), step=0.1, placeholder="e.g., 100")
             with c_unit:
                 if m_type == "Temperature":
                     units = ["mV/°C", "mV"]
@@ -405,28 +497,55 @@ def gateways_view():
                     unit_idx = units.index(curr_unit)
                 unit_val = st.selectbox("Sensitivity Unit *", options=units, index=unit_idx)
         
+        # ===== SAVE CONFIGURATION =====
         if m_type != "Select measurement type":
             if st.button("Save Configuration", type="primary", use_container_width=True):
-                if is_dynamic and gain_val == "Select gain":
+                # Validation: gain must be selected
+                if gain_val == "Select gain":
                     st.error("Please select a gain value!")
+                # Validation: signal path must be selected for dynamic types
+                elif is_dynamic and signal_path_val == 0:
+                    st.error("Please select a signal path!")
+                # Validation: axis must be selected for Acceleration/Displacement
+                elif needs_axis and (axis_val is None or axis_val == "Select axis"):
+                    st.error("Please select an axis!")
                 else:
+                    # Build config dict with all fields
+                    # Store selected point_id from Location selector
+                    sel_idx = point_display.index(loc_sel) if loc_sel in point_display else 0
+                    selected_point_id = point_ids[sel_idx] if sel_idx > 0 else None
                     config_data = {
                         "type": m_type,
                         "gain": gain_val,
                         "sensitivity": sensitivity_val,
                         "unit": unit_val,
-                        "configured": True
+                        "configured": True,
+                        "point_id": selected_point_id,
+                        "location_display": loc_sel if sel_idx > 0 else ""
                     }
+                    # Dynamic-specific fields
                     if is_dynamic:
                         config_data["fmax"] = fmax_val
                         config_data["lines"] = lines_val
+                        config_data["signal_path_sp"] = signal_path_val
+                    # Axis for Acceleration/Displacement
+                    if needs_axis:
+                        config_data["axis"] = axis_val
+                        if hpf_val:
+                            config_data["hpf"] = hpf_val
+                        if bpf_val:
+                            config_data["bpf"] = bpf_val
+                    
                     st.session_state.configured_channels[key] = config_data
-                    log_gateway_transaction("CONFIG_CHANNEL", f"Configured channel CH{ch_num} on {gw_ip} to {m_type} (Gain={gain_val}, Sens={sensitivity_val} {unit_val})", "Success")
+                    axis_info = f", Axis={axis_val}" if axis_val else ""
+                    log_gateway_transaction("CONFIG_CHANNEL",
+                        f"Configured CH{ch_num} on {gw_ip}: {m_type} (Gain={gain_val}, "
+                        f"Sens={sensitivity_val} {unit_val}, SP={signal_path_val}{axis_info})", "Success")
                     st.success("Configuration saved!")
                     time.sleep(1)
                     st.rerun()
 
-    # ===== Change 9: Renamed "Time Domain" → "Time Waveform" and "Frequency Domain (FFT)" → "Spectrum" =====
+    # ===== Take Reading dialog with unit toggle in Spectrum =====
     @st.dialog("📊 Take Reading", width="large")
     def take_reading_dialog(gw_ip, gw_port, ch_num):
         key = (gw_ip, ch_num)
@@ -436,7 +555,9 @@ def gateways_view():
         is_static = m_type in ["Temperature", "Pressure"]
         
         st.markdown(f"### Take Reading on Channel **CH{ch_num}**")
-        st.markdown(f"**Gateway**: `{gw_ip}:{gw_port}`  |  **Type**: `{m_type}` ({config.get('sensitivity')} {config.get('unit')}, Gain={config.get('gain')})")
+        axis_info = f" — {config.get('axis', '')}" if config.get('axis') else ""
+        st.markdown(f"**Gateway**: `{gw_ip}:{gw_port}`  |  **Type**: `{m_type}{axis_info}` "
+                    f"({config.get('sensitivity')} {config.get('unit')}, Gain={config.get('gain')})")
         
         # Use Fmax/Lines from saved config (no need to ask again)
         fmax = config.get("fmax", 1000)
@@ -457,6 +578,7 @@ def gateways_view():
         if st.button("▶ Acquire Data", type="primary", use_container_width=True):
             with st.spinner("Communicating with ITA-110..."):
                 try:
+                    # Pass signal_path_sp from config to the acquire function
                     raw_data, sr = acquire_channel_data(
                         ip=gw_ip,
                         port=gw_port,
@@ -465,7 +587,8 @@ def gateways_view():
                         measurement_type=config.get("type"),
                         sensitivity=config.get("sensitivity"),
                         fmax=fmax,
-                        lines=lines
+                        lines=lines,
+                        signal_path=config.get("signal_path_sp", 1)
                     )
                     
                     calibrated = calibrate_raw_data(raw_data, config.get("gain"), config.get("sensitivity"))
@@ -479,6 +602,22 @@ def gateways_view():
                     config["last_unit"] = "g" if m_type == "Acceleration" else (config.get("unit").split("/")[-1] if "/" in config.get("unit") else config.get("unit"))
                     config["last_time"] = datetime.datetime.now().strftime("%H:%M:%S")
                     st.session_state.configured_channels[key] = config
+                    
+                    # ===== Write reading to diagnosis point =====
+                    pt_id = config.get("point_id")
+                    axis_name = config.get("axis", "H Axis")
+                    if pt_id and 'diag_data' in st.session_state:
+                        diag_nodes = st.session_state.diag_data.get("nodes", {})
+                        if pt_id in diag_nodes:
+                            if "readings" not in diag_nodes[pt_id]:
+                                diag_nodes[pt_id]["readings"] = {}
+                            diag_nodes[pt_id]["readings"][axis_name] = {
+                                "time_waveform": calibrated,
+                                "spectrum_freq": f.tolist(),
+                                "spectrum_amp": fft_vals.tolist(),
+                                "sr": sr,
+                                "timestamp": datetime.datetime.now().isoformat()
+                            }
                     
                     st.success("Data Acquired successfully!")
                 except Exception as e:
@@ -504,7 +643,7 @@ def gateways_view():
                 use_container_width=True
             )
             
-            # ===== Change 9: Renamed tab labels =====
+            # ===== Two tabs: Time Waveform and Spectrum =====
             tab_time, tab_freq = st.tabs(["Time Waveform", "Spectrum"])
             with tab_time:
                 t = np.linspace(0, len(cal_data)/sr_computed * 1000, len(cal_data))
@@ -521,10 +660,40 @@ def gateways_view():
             with tab_freq:
                 if st.session_state.last_dialog_fft:
                     f_list, fft_list = st.session_state.last_dialog_fft
-                    fig_fft = go.Figure(go.Scatter(x=f_list, y=fft_list, line=dict(color="#FF4B4B")))
+                    
+                    # ===== UNIT TOGGLE: Real g ↔ mm/s conversion =====
+                    # Determine the native unit from the measurement type
+                    if m_type == "Acceleration":
+                        native_unit = "g"
+                    elif m_type == "Velocity":
+                        native_unit = "mm/s"
+                    else:
+                        native_unit = "mV"  # Displacement or other
+                    
+                    # Only show the toggle for Acceleration and Velocity types
+                    if m_type in ["Acceleration", "Velocity"]:
+                        display_unit = st.radio(
+                            "Amplitude Unit",
+                            options=["g", "mm/s"],
+                            index=0 if native_unit == "g" else 1,
+                            horizontal=True,
+                            help="Switch between acceleration (g) and velocity (mm/s). "
+                                 "This performs a real mathematical conversion in the frequency domain."
+                        )
+                        # Convert if the selected unit differs from native
+                        if display_unit != native_unit:
+                            plot_fft = convert_fft_units(f_list, fft_list, native_unit, display_unit).tolist()
+                        else:
+                            plot_fft = fft_list
+                        y_label = f"Amplitude ({display_unit})"
+                    else:
+                        plot_fft = fft_list
+                        y_label = f"Amplitude ({native_unit})"
+                    
+                    fig_fft = go.Figure(go.Scatter(x=f_list, y=plot_fft, line=dict(color="#FF4B4B")))
                     fig_fft.update_layout(
                         xaxis_title="Frequency (Hz)", 
-                        yaxis_title="Amplitude", 
+                        yaxis_title=y_label, 
                         template="plotly_dark", 
                         margin=dict(l=20,r=20,t=20,b=20),
                         height=300
@@ -596,10 +765,163 @@ def gateways_view():
                 time.sleep(1)
                 st.rerun()
 
-    # ===== Change 7: Schedule Readings dialog =====
-    @st.dialog("📅 Schedule Readings", width="medium")
+    # ===== Group-Based Schedule with Real Background Scheduler =====
+    # Each group has: name, selected channels, schedule type, interval settings, enabled toggle.
+    # A background thread runs the actual data acquisition at the configured intervals.
+    
+    # --- Background Scheduler Engine ---
+    # Global dict tracking running scheduler threads per gateway IP
+    # Key = gw_ip, Value = {"thread": Thread, "stop_event": Event, "groups": [...]}
+    if '_scheduler_threads' not in st.session_state:
+        st.session_state._scheduler_threads = {}
+    
+    def _run_scheduler_loop(gw_ip, gw_port, groups, configured_channels, stop_event):
+        """Background thread: loops through schedule groups and acquires data when interval fires.
+        
+        Each group tracks its own 'next_run' timestamp. The thread sleeps 1 second between
+        checks so it can respond quickly to the stop_event signal.
+        
+        Args:
+            gw_ip: IP address of the gateway to read from.
+            gw_port: TCP port of the gateway.
+            groups: list of group dicts (name, channels, schedule_type, interval, enabled, etc.)
+            configured_channels: dict of channel configs keyed by (ip, ch_num).
+            stop_event: threading.Event — set to True to gracefully stop the thread.
+        """
+        import copy
+        
+        # Map interval labels to seconds for "Simple Interval" schedule type
+        interval_to_seconds = {
+            "Every 5 seconds": 5,
+            "Every 1 minute": 60,
+            "Every 5 minutes": 300,
+            "Every 10 minutes": 600,
+            "Every 15 minutes": 900,
+            "Every 30 minutes": 1800,
+            "Every 1 hour": 3600,
+            "Every 2 hours": 7200,
+            "Every 4 hours": 14400,
+            "Every 8 hours": 28800,
+            "Every 12 hours": 43200,
+            "Every 24 hours": 86400,
+        }
+        
+        # Initialize next_run for each group to "now" so first reading fires immediately
+        group_next_run = {}
+        for i, grp in enumerate(groups):
+            if grp.get("enabled", False):
+                group_next_run[i] = time.time()
+        
+        while not stop_event.is_set():
+            now = time.time()
+            for i, grp in enumerate(groups):
+                if not grp.get("enabled", False):
+                    continue
+                if i not in group_next_run:
+                    group_next_run[i] = now
+                
+                # Check if it's time to fire this group
+                if now >= group_next_run[i]:
+                    sched_type = grp.get("schedule_type", "Simple Interval")
+                    channels = grp.get("channels", [])
+                    
+                    # --- Acquire data for each channel in the group ---
+                    for ch_label in channels:
+                        # Parse channel number from label like "CH3 (Acceleration — V Axis)"
+                        try:
+                            ch_num = int(ch_label.split("CH")[1].split(" ")[0])
+                        except (IndexError, ValueError):
+                            continue
+                        
+                        key = (gw_ip, ch_num)
+                        config = configured_channels.get(key, {})
+                        if not config.get("configured"):
+                            continue
+                        
+                        m_type = config.get("type", "")
+                        if m_type in ["Temperature", "Pressure"]:
+                            continue  # Skip static for now — AP command is separate
+                        
+                        try:
+                            raw_data, sr = acquire_channel_data(
+                                ip=gw_ip,
+                                port=gw_port,
+                                channel=ch_num,
+                                gain=config.get("gain"),
+                                measurement_type=config.get("type"),
+                                sensitivity=config.get("sensitivity"),
+                                fmax=config.get("fmax", 1000),
+                                lines=config.get("lines", 400),
+                                signal_path=config.get("signal_path_sp", 1)
+                            )
+                            calibrated = calibrate_raw_data(raw_data, config.get("gain"), config.get("sensitivity"))
+                            rms_val = compute_rms(np.array(calibrated))
+                            
+                            # Update config with latest reading
+                            config["last_val"] = f"{rms_val:.4f}"
+                            config["last_unit"] = "g" if m_type == "Acceleration" else (
+                                config.get("unit", "mV").split("/")[-1] if "/" in config.get("unit", "mV") else config.get("unit", "mV"))
+                            config["last_time"] = datetime.datetime.now().strftime("%H:%M:%S")
+                            configured_channels[key] = config
+                            
+                            log_gateway_transaction("SCHEDULED_READ",
+                                f"[{grp.get('name', 'Group')}] CH{ch_num} RMS={rms_val:.4f} {config['last_unit']}", "Success")
+                        except Exception as e:
+                            log_gateway_transaction("SCHEDULED_READ",
+                                f"[{grp.get('name', 'Group')}] CH{ch_num} failed: {e}", "Failed")
+                    
+                    # --- Calculate next run based on schedule type ---
+                    if sched_type == "Simple Interval":
+                        interval_label = grp.get("interval", "Every 1 hour")
+                        seconds = interval_to_seconds.get(interval_label, 3600)
+                        group_next_run[i] = now + seconds
+                    elif sched_type == "Every N Hours":
+                        n_hours = grp.get("n_hours", 1)
+                        group_next_run[i] = now + (n_hours * 3600)
+                    elif sched_type == "Daily at Specific Time":
+                        # Schedule for the same time tomorrow
+                        group_next_run[i] = now + 86400
+                    elif sched_type == "Multiple Times per Day":
+                        n_times = grp.get("times_per_day", 2)
+                        # Spread evenly across 24 hours
+                        group_next_run[i] = now + (86400 / max(n_times, 1))
+            
+            # Sleep 1 second between checks — allows quick stop_event response
+            stop_event.wait(1.0)
+    
+    def _start_scheduler(gw_ip, gw_port, groups):
+        """Start a background scheduler thread for the given gateway.
+        Stops any existing thread first."""
+        _stop_scheduler(gw_ip)
+        
+        stop_event = threading.Event()
+        thread = threading.Thread(
+            target=_run_scheduler_loop,
+            args=(gw_ip, gw_port, groups, st.session_state.configured_channels, stop_event),
+            daemon=True,  # Dies when Streamlit process exits
+            name=f"scheduler_{gw_ip}"
+        )
+        st.session_state._scheduler_threads[gw_ip] = {
+            "thread": thread,
+            "stop_event": stop_event,
+            "started_at": datetime.datetime.now().strftime("%H:%M:%S")
+        }
+        thread.start()
+        log_gateway_transaction("SCHEDULER", f"Started scheduler for {gw_ip} with {len(groups)} groups", "Success")
+    
+    def _stop_scheduler(gw_ip):
+        """Stop a running scheduler thread for the given gateway."""
+        info = st.session_state._scheduler_threads.get(gw_ip)
+        if info and info["thread"].is_alive():
+            info["stop_event"].set()
+            info["thread"].join(timeout=3.0)
+            log_gateway_transaction("SCHEDULER", f"Stopped scheduler for {gw_ip}", "Success")
+        st.session_state._scheduler_threads.pop(gw_ip, None)
+    
+    @st.dialog("📅 Schedule Channels", width="large")
     def schedule_readings_dialog(gw_ip):
-        """Configure scheduled/automatic readings for a gateway."""
+        """Group-based schedule dialog — each group can have different channels,
+        schedule type, and interval. A real background thread acquires data automatically."""
         gw = None
         for g in st.session_state.gateways:
             if g["ip"] == gw_ip:
@@ -610,76 +932,163 @@ def gateways_view():
             st.error("Gateway not found!")
             return
         
-        st.markdown(f"#### Schedule for **{gw['name']}**")
-        st.caption(f"Configure automatic periodic readings for all configured channels.")
+        st.markdown(f"#### Schedule Channels — **{gw['name']}**")
         
-        # Initialize schedule state if needed
-        sched_key = f"schedule_{gw_ip}"
-        if sched_key not in st.session_state:
-            st.session_state[sched_key] = {
-                "enabled": False,
-                "interval": "Every 1 hour",
-                "start_time": datetime.time(8, 0),
-                "channels": "All configured"
-            }
-        curr_sched = st.session_state[sched_key]
+        # Initialize schedule groups state
+        groups_key = f"schedule_groups_{gw_ip}"
+        if groups_key not in st.session_state:
+            st.session_state[groups_key] = []
         
-        # Enable/disable toggle
-        enabled = st.toggle("Enable Scheduled Readings", value=curr_sched.get("enabled", False))
+        # Build available channel labels from configured channels
+        available_channels = []
+        for k, v in st.session_state.configured_channels.items():
+            if k[0] == gw_ip and v.get("configured"):
+                axis_str = f" — {v.get('axis')}" if v.get('axis') else ""
+                label = f"CH{k[1]} ({v.get('type', '')}{axis_str})"
+                available_channels.append(label)
         
-        if enabled:
-            st.markdown("---")
-            
-            # Interval selection
-            interval_opts = [
-                "Every 5 minutes", "Every 10 minutes", "Every 15 minutes", "Every 30 minutes",
-                "Every 1 hour", "Every 2 hours", "Every 4 hours", "Every 8 hours",
-                "Every 12 hours", "Every 24 hours"
-            ]
-            curr_interval = curr_sched.get("interval", "Every 1 hour")
-            interval_idx = interval_opts.index(curr_interval) if curr_interval in interval_opts else 4
-            interval = st.selectbox("Reading Interval", options=interval_opts, index=interval_idx)
-            
-            # Start time
-            start_time = st.time_input("Start Time", value=curr_sched.get("start_time", datetime.time(8, 0)))
-            
-            # Channel selection
-            ch_opts = ["All configured"]
-            # Add individually configured channels
-            for k, v in st.session_state.configured_channels.items():
-                if k[0] == gw_ip and v.get("configured"):
-                    ch_opts.append(f"CH{k[1]} ({v.get('type', '')})")
-            
-            channel_sel = st.selectbox("Channels to Read", options=ch_opts)
-            
-            st.markdown("---")
-            
-            # Save button
-            if st.button("Save Schedule", type="primary", use_container_width=True):
-                st.session_state[sched_key] = {
-                    "enabled": True,
-                    "interval": interval,
-                    "start_time": start_time,
-                    "channels": channel_sel
-                }
-                log_gateway_transaction("SCHEDULE", f"Scheduled readings for {gw['name']}: {interval} starting at {start_time}", "Success")
-                st.success("Schedule saved!")
-                time.sleep(1)
+        if not available_channels:
+            st.warning("No configured channels found. Please configure channels first before scheduling.")
+            return
+        
+        # ===== "+ Add Group" button =====
+        col_header, col_btn = st.columns([3, 1])
+        with col_header:
+            st.markdown("##### Channel Groups")
+        with col_btn:
+            if st.button("➕ Add Group", type="primary", use_container_width=True):
+                st.session_state[groups_key].append({
+                    "name": f"Group {len(st.session_state[groups_key]) + 1}",
+                    "channels": [],
+                    "schedule_type": "Simple Interval",
+                    "interval": "Every 1 hour",
+                    "n_hours": 1,
+                    "times_per_day": 2,
+                    "daily_time": datetime.time(8, 0),
+                    "enabled": True
+                })
                 st.rerun()
+        
+        # ===== Render each group as a card =====
+        groups = st.session_state[groups_key]
+        groups_to_delete = []
+        
+        for idx, grp in enumerate(groups):
+            with st.container(border=True):
+                # Group header: name + delete button
+                c_name, c_del = st.columns([5, 1])
+                with c_name:
+                    grp["name"] = st.text_input("Group Name", value=grp.get("name", f"Group {idx+1}"),
+                                                 key=f"grp_name_{gw_ip}_{idx}", label_visibility="collapsed",
+                                                 placeholder="Enter group name...")
+                with c_del:
+                    if st.button("🗑️", key=f"grp_del_{gw_ip}_{idx}", help="Delete this group"):
+                        groups_to_delete.append(idx)
+                
+                # Select Channels (multiselect)
+                grp["channels"] = st.multiselect(
+                    "Select Channels",
+                    options=available_channels,
+                    default=[ch for ch in grp.get("channels", []) if ch in available_channels],
+                    key=f"grp_ch_{gw_ip}_{idx}"
+                )
+                
+                # Schedule Type
+                sched_types = ["Simple Interval", "Daily at Specific Time", "Multiple Times per Day", "Every N Hours"]
+                curr_stype = grp.get("schedule_type", "Simple Interval")
+                stype_idx = sched_types.index(curr_stype) if curr_stype in sched_types else 0
+                grp["schedule_type"] = st.selectbox("Schedule Type", options=sched_types, index=stype_idx,
+                                                     key=f"grp_stype_{gw_ip}_{idx}")
+                
+                # Conditional fields based on schedule type
+                if grp["schedule_type"] == "Simple Interval":
+                    interval_opts = [
+                        "Every 5 seconds", "Every 1 minute",
+                        "Every 5 minutes", "Every 10 minutes", "Every 15 minutes", "Every 30 minutes",
+                        "Every 1 hour", "Every 2 hours", "Every 4 hours", "Every 8 hours",
+                        "Every 12 hours", "Every 24 hours"
+                    ]
+                    curr_int = grp.get("interval", "Every 1 hour")
+                    int_idx = interval_opts.index(curr_int) if curr_int in interval_opts else 6
+                    grp["interval"] = st.selectbox("Read Interval", options=interval_opts, index=int_idx,
+                                                    key=f"grp_int_{gw_ip}_{idx}")
+                
+                elif grp["schedule_type"] == "Daily at Specific Time":
+                    grp["daily_time"] = st.time_input("Time of Day",
+                        value=grp.get("daily_time", datetime.time(8, 0)),
+                        key=f"grp_daily_{gw_ip}_{idx}")
+                
+                elif grp["schedule_type"] == "Multiple Times per Day":
+                    grp["times_per_day"] = st.number_input("How many times per day?",
+                        min_value=1, max_value=48, value=grp.get("times_per_day", 2),
+                        key=f"grp_ntimes_{gw_ip}_{idx}")
+                    grp["daily_time"] = st.time_input("First reading at",
+                        value=grp.get("daily_time", datetime.time(6, 0)),
+                        key=f"grp_mfirst_{gw_ip}_{idx}")
+                
+                elif grp["schedule_type"] == "Every N Hours":
+                    grp["n_hours"] = st.number_input("Every N hours",
+                        min_value=1, max_value=72, value=grp.get("n_hours", 1),
+                        key=f"grp_nhours_{gw_ip}_{idx}")
+                
+                # Status toggle
+                grp["enabled"] = st.toggle("Enabled", value=grp.get("enabled", True),
+                                            key=f"grp_enabled_{gw_ip}_{idx}")
+                
+                # Show selected channels as colored pills
+                if grp["channels"]:
+                    pills_html = " ".join([
+                        f'<span style="display:inline-block;padding:4px 12px;margin:2px;'
+                        f'border-radius:20px;background:#3b82f6;color:white;font-size:12px;'
+                        f'font-weight:500;">{ch}</span>'
+                        for ch in grp["channels"]
+                    ])
+                    st.markdown(f"**Selected Channels:** {pills_html}", unsafe_allow_html=True)
+        
+        # Process group deletions
+        if groups_to_delete:
+            for idx in sorted(groups_to_delete, reverse=True):
+                st.session_state[groups_key].pop(idx)
+            st.rerun()
+        
+        # ===== Footer: Cancel + Save Schedule =====
+        if groups:
+            st.markdown("---")
             
-            # Info about backend requirement
-            st.warning("⚠️ Note: Scheduled readings require a backend scheduler service (not yet connected). The schedule configuration is saved but readings will not run automatically until the backend is integrated.")
-        else:
-            # Disable schedule
-            if curr_sched.get("enabled"):
-                if st.button("Disable Schedule", type="secondary", use_container_width=True):
-                    st.session_state[sched_key]["enabled"] = False
-                    log_gateway_transaction("SCHEDULE", f"Disabled scheduled readings for {gw['name']}", "Success")
-                    st.info("Schedule disabled.")
+            # Show scheduler status
+            sched_info = st.session_state._scheduler_threads.get(gw_ip)
+            if sched_info and sched_info["thread"].is_alive():
+                st.success(f"🟢 Scheduler is **running** (started at {sched_info.get('started_at', '?')})")
+                if st.button("⏹ Stop Scheduler", type="secondary", use_container_width=True):
+                    _stop_scheduler(gw_ip)
+                    st.info("Scheduler stopped.")
+                    time.sleep(0.5)
+                    st.rerun()
+            
+            c_cancel, c_save = st.columns(2)
+            with c_cancel:
+                if st.button("Cancel", use_container_width=True):
+                    st.rerun()
+            with c_save:
+                if st.button("💾 Save & Start Schedule", type="primary", use_container_width=True):
+                    # Save groups to session state
+                    st.session_state[groups_key] = groups
+                    
+                    # Filter to only enabled groups with channels
+                    active_groups = [g for g in groups if g.get("enabled") and g.get("channels")]
+                    
+                    if active_groups:
+                        # Start the real background scheduler thread
+                        gw_port = gw.get("port", 8020)
+                        _start_scheduler(gw_ip, gw_port, active_groups)
+                        st.success(f"Schedule saved! Scheduler started with {len(active_groups)} active group(s).")
+                    else:
+                        _stop_scheduler(gw_ip)
+                        st.info("No active groups with channels — scheduler not started.")
+                    
+                    log_gateway_transaction("SCHEDULE", f"Saved {len(groups)} group(s) for {gw['name']}", "Success")
                     time.sleep(1)
                     st.rerun()
-            else:
-                st.caption("Toggle the switch above to configure automatic readings.")
 
     # ===============================================
     # ===== Trigger Pending Actions =====
