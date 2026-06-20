@@ -47,11 +47,21 @@ else:
             st.markdown(f"<h3 style='margin-top: 5px;'>Welcome, <span class='gold-user'>{st.session_state.username}</span></h3>", unsafe_allow_html=True)
             st.markdown("<hr style='border: 1px solid rgba(100,100,100,0.2);'>", unsafe_allow_html=True)
             
-            menu_items = ["Dashboard 📊", "Gateways 🔌", "ITA-110 Gateway ⚙️", "CTC Connect 📡", "Machines & Diagnosis 🏭", "Diagnostics 📈", "New Diagnosis 🔬"]
+            role = st.session_state.get('user_role', 'Maintenance Engineer')
             
-            # Secret Admin Role Verification
-            if st.session_state.get('user_role') == "Admin":
-                menu_items.append("Admin Panel 🛡️")
+            # Determine menu items based on exact role
+            if role == "Admin System":
+                menu_items = [
+                    "Dashboard 📊", "Gateways 🔌", "ITA-110 Gateway ⚙️", 
+                    "CTC Connect 📡", "Machines & Diagnosis 🏭", "Diagnostics 📈", 
+                    "New Diagnosis 🔬", "Admin Panel 🛡️"
+                ]
+            elif role == "Vibration Engineer":
+                menu_items = ["Dashboard 📊", "Gateways 🔌", "New Diagnosis 🔬"]
+            elif role == "Maintenance Engineer":
+                menu_items = ["Dashboard 📊", "New Diagnosis 🔬"]
+            else:
+                menu_items = ["Dashboard 📊"]
                 
             for item in menu_items:
                 if st.button(item, key=f"nav_{item}", use_container_width=True):

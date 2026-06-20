@@ -21,9 +21,9 @@ def init_users_state():
     """Create mock users if not already in session state."""
     if 'mock_users' not in st.session_state:
         st.session_state.mock_users = [
-            {"id": "EMP-001", "name": "System Administrator", "username": "admin", "email": "admin@iiot.local", "contact": "+1-555-0101", "password": "••••••••", "role": "Admin"},
-            {"id": "EMP-002", "name": "Ahmed Engineer", "username": "engineer1", "email": "ahmed@iiot.local", "contact": "+20123456789", "password": "••••••••", "role": "Engineer"},
-            {"id": "EMP-003", "name": "Guest Operator", "username": "guest", "email": "guest@iiot.local", "contact": "", "password": "••••••••", "role": "Viewer"}
+            {"id": "EMP-001", "name": "System Administrator", "username": "admin", "email": "admin@iiot.local", "contact": "+1-555-0101", "password": "••••••••", "role": "Admin System"},
+            {"id": "EMP-002", "name": "Ahmed Engineer", "username": "vib", "email": "ahmed@iiot.local", "contact": "+20123456789", "password": "••••••••", "role": "Vibration Engineer"},
+            {"id": "EMP-003", "name": "Guest Operator", "username": "maint", "email": "guest@iiot.local", "contact": "", "password": "••••••••", "role": "Maintenance Engineer"}
         ]
 
 # ===== Initialize user activity logs =====
@@ -58,7 +58,7 @@ def admin_panel_v2_view():
     init_activity_logs()
     
     # ===== Security check =====
-    if st.session_state.get("user_role") != "Admin":
+    if st.session_state.get("user_role") != "Admin System":
         st.error("Access Denied: You do not have permission to view this page.")
         return
 
@@ -113,7 +113,7 @@ def admin_panel_v2_view():
         email = st.text_input("Email Address", placeholder="e.g. email@firm.com")
         contact = st.text_input("Contact Info", placeholder="(Optional)")
         password = st.text_input("Temporary Password", type="password")
-        role = st.selectbox("Assign Role", ["Viewer", "Engineer", "Admin"])
+        role = st.selectbox("Assign Role", ["Maintenance Engineer", "Vibration Engineer", "Admin System"])
             
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("Save Account", type="primary", use_container_width=True):
@@ -146,7 +146,7 @@ def admin_panel_v2_view():
         email = st.text_input("Email Address", value=user.get('email', ''))
         contact = st.text_input("Contact Info", value=user.get('contact', ''))
         password = st.text_input("Password", value=user.get('password', '••••••••'), type="password")
-        role_opts = ["Viewer", "Engineer", "Admin"]
+        role_opts = ["Maintenance Engineer", "Vibration Engineer", "Admin System"]
         role_idx = role_opts.index(user['role']) if user['role'] in role_opts else 0
         role = st.selectbox("Assign Role", role_opts, index=role_idx)
             

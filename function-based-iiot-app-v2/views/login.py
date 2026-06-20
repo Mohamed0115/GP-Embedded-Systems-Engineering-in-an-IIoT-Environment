@@ -10,25 +10,27 @@ def login_view():
             st.markdown("<p style='text-align: center; color: #888; margin-bottom: 2rem;'>Enter credentials to access firm environment</p>", unsafe_allow_html=True)
             
             with st.form("login_form"):
-                user = st.text_input("Username", placeholder="admin")
-                pwd = st.text_input("Password", type="password", placeholder="••••••••")
+                user = st.text_input("Username", placeholder="")
+                pwd = st.text_input("Password", type="password", placeholder="")
                 submit = st.form_submit_button("Sign In", use_container_width=True)
                 
                 if submit:
                     if user and pwd:
                         with st.spinner("Authenticating..."):
                             time.sleep(1)
-                        if user.lower() == "admin" and pwd != "admin123":
-                            st.error("Invalid Admin password. Access Denied.")
+                        user_lower = user.lower()
+                        users_db = {
+                            "admin": {"pwd": "admin123", "role": "Admin System"},
+                            "vib": {"pwd": "vib123", "role": "Vibration Engineer"},
+                            "maint": {"pwd": "maint123", "role": "Maintenance Engineer"}
+                        }
+                        
+                        if user_lower not in users_db or users_db[user_lower]["pwd"] != pwd:
+                            st.error("Invalid username or password. Access Denied.")
                             st.stop()
                             
                         st.session_state.username = user
-                        
-                        # Security Check: Assign roles dynamically
-                        if user.lower() == "admin" and pwd == "admin123":
-                            st.session_state.user_role = "Admin"
-                        else:
-                            st.session_state.user_role = "Engineer"
+                        st.session_state.user_role = users_db[user_lower]["role"]
                             
                         # Force a clean routing state so previous sessions don't leak over
                         st.session_state.current_view = "Dashboard 📊"
