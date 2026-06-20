@@ -55,6 +55,7 @@ def new_diagnosis_view():
         mode=mode,
         point_data=point_data,
         breadcrumb=breadcrumb,
+        user_role=st.session_state.get("user_role", "Maintenance Engineer"),
         key="new_diag_comp"
     )
 
