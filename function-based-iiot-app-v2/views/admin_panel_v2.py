@@ -16,15 +16,57 @@ import uuid
 import datetime
 import os
 
-# ===== Initialize users state =====
-def init_users_state():
-    """Create mock users if not already in session state."""
-    if 'mock_users' not in st.session_state:
-        st.session_state.mock_users = [
-            {"id": "EMP-001", "name": "System Administrator", "username": "admin", "email": "admin@iiot.local", "contact": "+1-555-0101", "password": "••••••••", "role": "Admin System"},
-            {"id": "EMP-002", "name": "Ahmed Engineer", "username": "vib", "email": "ahmed@iiot.local", "contact": "+20123456789", "password": "••••••••", "role": "Vibration Engineer"},
-            {"id": "EMP-003", "name": "Guest Operator", "username": "maint", "email": "guest@iiot.local", "contact": "", "password": "••••••••", "role": "Maintenance Engineer"}
-        ]
+import psycopg2
+from psycopg2.extras import RealDictCursor
+
+
+def get_db_connection():
+    return psycopg2.connect(
+        host="localhost",
+        database="iiot",
+        user="postgres",
+        password="hassan",
+        port="5432"
+    )
+
+
+def load_users():
+    conn = get_db_connection()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+
+    cur.execute("""
+        SELECT
+            id,
+            full_name,
+            username,
+            email,
+            phone_number,
+            role,
+            created_at,
+            last_login
+        FROM users
+        ORDER BY id
+    """)
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    users = []
+
+    for row in rows:
+        users.append({
+            "id": row["id"],
+            "name": row["full_name"],
+            "username": row["username"],
+            "email": row["email"],
+            "contact": row["phone_number"] or "",
+            "password": "********",
+            "role": row["role"]
+        })
+
+    return users
 
 # ===== Initialize user activity logs =====
 def init_activity_logs():
@@ -47,14 +89,30 @@ def log_user_activity(user_id, action, detail, status="Success"):
 
 # ===== Delete user callback =====
 def delete_user_callback(user_id):
-    """Remove a user from session state by their ID."""
-    st.session_state.mock_users = [u for u in st.session_state.mock_users if u['id'] != user_id]
-    log_user_activity(user_id, "DELETE_USER", f"Deleted user {user_id}", "Success")
 
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute(
+        "DELETE FROM users WHERE id = %s",
+        (user_id,)
+    )
+
+    conn.commit()
+
+    cur.close()
+    conn.close()
+
+    log_user_activity(
+        user_id,
+        "DELETE_USER",
+        f"Deleted user {user_id}",
+        "Success"
+    )
 
 def admin_panel_v2_view():
     """Main view function for the Admin Panel V2 with custom component."""
-    init_users_state()
+    st.session_state.mock_users = load_users()
     init_activity_logs()
     
     # ===== Security check =====
@@ -112,7 +170,7 @@ def admin_panel_v2_view():
         username = st.text_input("Username", placeholder="e.g. mohamed.a")
         email = st.text_input("Email Address", placeholder="e.g. email@firm.com")
         contact = st.text_input("Contact Info", placeholder="(Optional)")
-        password = st.text_input("Temporary Password", type="password")
+        password = st.text_input(" Password", type="password")
         role = st.selectbox("Assign Role", ["Maintenance Engineer", "Vibration Engineer", "Admin System"])
             
         st.markdown("<br>", unsafe_allow_html=True)
@@ -121,10 +179,33 @@ def admin_panel_v2_view():
                 st.error("Name, Username, and Password are required fields.")
             else:
                 new_id = f"EMP-{str(uuid.uuid4())[:3].upper()}"
-                st.session_state.mock_users.append({
-                    "id": new_id, "name": name, "username": username,
-                    "email": email, "contact": contact, "password": "••••••••", "role": role
-                })
+                #-------------------TO Add new user
+                conn = get_db_connection()
+                cur = conn.cursor()
+
+                cur.execute("""
+                    INSERT INTO users (
+                        full_name,
+                        role,
+                        username,
+                        email,
+                        phone_number,
+                        password
+                    )
+                    VALUES (%s,%s,%s,%s,%s,%s)
+                """, (
+                    name,
+                    role,
+                    username,
+                    email,
+                    contact,
+                    password
+                ))
+
+                conn.commit()
+                cur.close()
+                conn.close()
+                #------------------------
                 log_user_activity(new_id, "CREATE_USER", f"Created user {name} ({username}) with role {role}", "Success")
                 st.success("Account created successfully!")
                 time.sleep(0.5)
@@ -134,7 +215,13 @@ def admin_panel_v2_view():
     @st.dialog("✏️ Edit Account")
     def edit_user_dialog(user_id):
         """Update credentials for an existing user."""
-        idx = next((i for i, u in enumerate(st.session_state.mock_users) if u['id'] == user_id), None)
+        idx = next(
+            (
+                i for i, u in enumerate(st.session_state.mock_users)
+                if str(u["id"]) == str(user_id)
+            ),
+            None
+        )
         if idx is None:
             st.error("User not found!")
             return
@@ -152,62 +239,97 @@ def admin_panel_v2_view():
             
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("Update Account", type="primary", use_container_width=True):
-            st.session_state.mock_users[idx]['name'] = name
-            st.session_state.mock_users[idx]['username'] = username
-            st.session_state.mock_users[idx]['contact'] = contact
-            st.session_state.mock_users[idx]['email'] = email
-            st.session_state.mock_users[idx]['password'] = password
-            st.session_state.mock_users[idx]['role'] = role
-            log_user_activity(user_id, "EDIT_USER", f"Updated user {name} ({username}), role={role}", "Success")
+            conn = get_db_connection()
+            cur = conn.cursor()
+
+            cur.execute("""
+                UPDATE users
+                SET
+                    full_name = %s,
+                    username = %s,
+                    email = %s,
+                    phone_number = %s,
+                    role = %s,
+                    password = %s
+                WHERE id = %s
+            """, (
+                name,
+                username,
+                email,
+                contact,
+                role,
+                password,
+                user_id
+            ))
+
+            conn.commit()
+            cur.close()
+            conn.close()
             st.success("Account updated successfully!")
             time.sleep(0.5)
             st.rerun()
 
+    def get_user_details(user_id):
+        conn = get_db_connection()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+
+        cur.execute("""
+            SELECT
+                id,
+                full_name,
+                username,
+                email,
+                role,
+                created_at,
+                last_login
+            FROM users
+            WHERE id = %s
+        """, (user_id,))
+
+        user = cur.fetchone()
+
+        cur.close()
+        conn.close()
+
+        return user
     # ===== Change 5b: Per-User Activity Logs dialog =====
-    @st.dialog("📋 User Activity Logs", width="large")
+    #
+    @st.dialog("📋 User Information", width="large")
     def view_user_logs_dialog(user_id, user_name):
-        """Show color-coded activity logs for a specific user, same style as gateway logs."""
-        st.markdown(f"#### Activity Logs for **{user_name}** (`{user_id}`)")
-        
-        # Filter logs for this user
-        user_logs = [l for l in st.session_state.user_activity_logs if l.get("user_id") == user_id]
-        
-        if not user_logs:
-            st.info(f"No activity logs recorded for {user_name}.")
-        else:
-            # Build color-coded HTML table matching gateway logs style
-            log_rows = ""
-            for log in reversed(user_logs):
-                status = log.get("status", "")
-                # Color code: green for success, red for failed, yellow for pending
-                if status == "Success":
-                    response_bg = "background-color: #dcfce7; color: #166534;"
-                elif status == "Failed":
-                    response_bg = "background-color: #fee2e2; color: #991b1b;"
-                elif status == "Pending":
-                    response_bg = "background-color: #fef3c7; color: #92400e;"
-                else:
-                    response_bg = ""
-                log_rows += f"""<tr>
-                    <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px; white-space: nowrap;">{log.get('timestamp', '')}</td>
-                    <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px; font-weight: 600;">{log.get('action', '')}</td>
-                    <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px; {response_bg} border-radius: 4px;">{log.get('detail', '')}</td>
-                    <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px; font-weight: 600; {response_bg}">{status}</td>
-                </tr>"""
-            
-            log_html = f"""<div style="max-height: 400px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px;">
-            <table style="width: 100%; border-collapse: collapse;">
-                <thead>
-                    <tr style="background: #f3f4f6; position: sticky; top: 0;">
-                        <th style="padding: 10px 12px; text-align: left; font-size: 13px; font-weight: 600; border-bottom: 2px solid #d1d5db;">Timestamp</th>
-                        <th style="padding: 10px 12px; text-align: left; font-size: 13px; font-weight: 600; border-bottom: 2px solid #d1d5db;">Action</th>
-                        <th style="padding: 10px 12px; text-align: left; font-size: 13px; font-weight: 600; border-bottom: 2px solid #d1d5db;">Detail</th>
-                        <th style="padding: 10px 12px; text-align: left; font-size: 13px; font-weight: 600; border-bottom: 2px solid #d1d5db;">Status</th>
-                    </tr>
-                </thead>
-                <tbody>{log_rows}</tbody>
-            </table></div>"""
-            st.markdown(log_html, unsafe_allow_html=True)
+
+        user = get_user_details(user_id)
+
+        if not user:
+            st.error("User not found.")
+            return
+
+        st.markdown(f"### {user['full_name']}")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.metric("User ID", user["id"])
+            st.metric("Username", user["username"])
+            st.metric("Role", user["role"])
+
+        with col2:
+            st.metric(
+                "Created At",
+                user["created_at"].strftime("%Y-%m-%d %H:%M:%S")
+                if user["created_at"] else "N/A"
+            )
+
+            st.metric(
+                "Last Login",
+                user["last_login"].strftime("%Y-%m-%d %H:%M:%S")
+                if user["last_login"] else "Never"
+            )
+
+        st.divider()
+
+        st.markdown("#### Account Information")
+
+        st.write(f"**Email:** {user['email']}")
 
     # ===============================================
     # ===== Trigger Pending Actions =====

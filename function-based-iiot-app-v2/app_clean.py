@@ -23,7 +23,6 @@ from views.ctc_gateway import ctc_gateway_view
 from views.machines import machines_view
 from views.diagnostics import diagnostics_view
 from views.new_diagnosis import new_diagnosis_view
-from views.admin_panel import admin_panel_view  # Original (kept for reference)
 from views.admin_panel_v2 import admin_panel_v2_view  # New custom component version
 
 # Initialize states
