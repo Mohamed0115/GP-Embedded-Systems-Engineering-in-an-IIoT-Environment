@@ -17,8 +17,13 @@ def compute_fft(data, sr):
     if n == 0: return [], []
     # Remove DC offset to eliminate the 0 Hz spike
     data_centered = data - np.mean(data)
+    # Apply Hanning window to reduce spectral leakage
+    window = np.hanning(n)
+    data_windowed = data_centered * window
+    # Amplitude correction factor for Hanning window (mean of window = 0.5)
+    window_correction = 2.0
     freq = np.fft.rfftfreq(n, d=1/sr)
-    fft_vals = np.abs(np.fft.rfft(data_centered)) / n
+    fft_vals = np.abs(np.fft.rfft(data_windowed)) / n * window_correction
     # Multiply by 2 for single-sided spectrum (energy from negative freqs)
     # DC (index 0) and Nyquist (last index if n is even) stay as-is
     fft_vals[1:-1] *= 2

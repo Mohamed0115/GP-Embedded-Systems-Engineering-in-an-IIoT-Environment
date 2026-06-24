@@ -2,6 +2,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 import os
 import uuid
+from core.state_manager import log_user_activity
 
 
 def new_diagnosis_view():
@@ -118,6 +119,7 @@ def _handle_event(event):
             "location": data.get("location", "")
         }
         nodes[company_id]["children"].append(plant_id)
+        log_user_activity(st.session_state.get('username', ''), 'DIAGNOSIS', 'ADD_PLANT', f"Added plant '{data.get('name', 'New Plant')}' under '{data.get('company_name', 'company')}'")
 
     # ----- ADD ZONE -----
     elif action == "add_zone":
@@ -132,6 +134,7 @@ def _handle_event(event):
         }
         if parent_id in nodes:
             nodes[parent_id]["children"].append(zone_id)
+        log_user_activity(st.session_state.get('username', ''), 'DIAGNOSIS', 'ADD_ZONE', f"Added zone '{data.get('name', 'New Zone')}'")
 
     # ----- ADD MACHINE -----
     elif action == "add_machine":
@@ -151,6 +154,7 @@ def _handle_event(event):
         }
         if parent_id in nodes:
             nodes[parent_id]["children"].append(mach_id)
+        log_user_activity(st.session_state.get('username', ''), 'DIAGNOSIS', 'ADD_MACHINE', f"Added machine '{data.get('name', 'New Machine')}'")
 
     # ----- ADD POINT -----
     elif action == "add_point":
@@ -183,11 +187,18 @@ def _handle_event(event):
             for k, v in data.items():
                 if k not in ("id", "type", "parent_id", "children", "readings"):
                     nodes[node_id][k] = v
+            log_user_activity(st.session_state.get('username', ''), 'DIAGNOSIS', 'EDIT', f"Edited {nodes[node_id].get('type', 'node')} '{nodes[node_id].get('name', node_id)}'")
 
     # ----- DELETE (recursive) -----
     elif action == "delete":
         node_id = event.get("node_id")
-        _delete_node(node_id, nodes)
+        if node_id in nodes:
+            node_name = nodes[node_id].get('name', node_id)
+            node_type = nodes[node_id].get('type', 'node')
+            _delete_node(node_id, nodes)
+            log_user_activity(st.session_state.get('username', ''), 'DIAGNOSIS', 'DELETE', f"Deleted {node_type} '{node_name}'")
+        else:
+            _delete_node(node_id, nodes)
 
     # ----- CHANGE STATUS COLOR -----
     elif action == "change_status":

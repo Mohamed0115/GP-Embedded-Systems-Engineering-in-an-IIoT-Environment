@@ -1,5 +1,6 @@
 import streamlit as st
 import time
+from core.state_manager import save_session_to_cache
 
 def login_view():
     col1, col2, col3 = st.columns([1, 1.2, 1])
@@ -35,6 +36,8 @@ def login_view():
                         # Force a clean routing state so previous sessions don't leak over
                         st.session_state.current_view = "Dashboard 📊"
                         st.session_state.logged_in = True
+                        # Persist session to server-side cache so page refresh doesn't log out
+                        save_session_to_cache()
                         st.rerun()
                     else:
                         st.error("Please enter both username and password")

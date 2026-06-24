@@ -406,6 +406,12 @@
                         <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
                       </svg>
                     </button>
+                    <!-- Refresh Scheduled Data -->
+                    <button onclick="triggerAction('refresh_data', '${gw.ip}', 0)" class="focus:outline-none disabled:cursor-not-allowed disabled:opacity-75 flex-shrink-0 font-medium rounded-md text-xs p-1.5 text-yellow-600 dark:text-yellow-400 bg-yellow-50 hover:bg-yellow-100 dark:bg-yellow-950/40 dark:hover:bg-yellow-900/40 focus-visible:ring-2 focus-visible:ring-yellow-500 inline-flex items-center" type="button" title="Refresh Scheduled Data">
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182M2.985 19.644l3.181-3.183" />
+                      </svg>
+                    </button>
                     <!-- Reconnect -->
                     <button onclick="triggerAction('reconnect_gw', '${gw.ip}', 0)" class="focus:outline-none disabled:cursor-not-allowed disabled:opacity-75 flex-shrink-0 font-medium rounded-md text-xs p-1.5 text-green-500 dark:text-green-400 bg-green-50 hover:bg-green-100 dark:bg-green-950/40 dark:hover:bg-green-900/40 focus-visible:ring-2 focus-visible:ring-green-500 inline-flex items-center" type="button" title="Reconnect Gateway">
                       <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">

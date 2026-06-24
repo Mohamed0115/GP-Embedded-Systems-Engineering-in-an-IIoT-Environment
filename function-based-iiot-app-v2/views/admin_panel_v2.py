@@ -163,22 +163,55 @@ def admin_panel_v2_view():
             time.sleep(0.5)
             st.rerun()
 
-    # ===== Change 5b: Per-User Activity Logs dialog =====
+    # ===== Change 5b: Per-User Activity Logs dialog (unified across all pages) =====
     @st.dialog("📋 User Activity Logs", width="large")
     def view_user_logs_dialog(user_id, user_name):
-        """Show color-coded activity logs for a specific user, same style as gateway logs."""
+        """Show color-coded activity logs for a specific user across the entire website."""
         st.markdown(f"#### Activity Logs for **{user_name}** (`{user_id}`)")
         
-        # Filter logs for this user
-        user_logs = [l for l in st.session_state.user_activity_logs if l.get("user_id") == user_id]
+        # Find the username associated with this user_id
+        target_username = None
+        for u in st.session_state.mock_users:
+            if u['id'] == user_id:
+                target_username = u.get('username', '').lower()
+                break
         
-        if not user_logs:
+        # Merge admin-specific logs and unified cross-page logs
+        admin_logs = [l for l in st.session_state.get('user_activity_logs', []) if l.get("user_id") == user_id]
+        unified_logs = []
+        if target_username:
+            unified_logs = [l for l in st.session_state.get('unified_activity_logs', []) if l.get("username", "").lower() == target_username]
+        
+        # Convert unified logs to the same format
+        all_logs = []
+        for log in admin_logs:
+            all_logs.append({
+                "timestamp": log.get("timestamp", ""),
+                "action": log.get("action", ""),
+                "detail": log.get("detail", ""),
+                "status": log.get("status", ""),
+                "category": "ADMIN"
+            })
+        for log in unified_logs:
+            all_logs.append({
+                "timestamp": log.get("timestamp", ""),
+                "action": f"[{log.get('category', '')}] {log.get('action', '')}",
+                "detail": log.get("detail", ""),
+                "status": log.get("status", ""),
+                "category": log.get("category", "")
+            })
+        
+        # Sort by timestamp descending
+        all_logs.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+        
+        if not all_logs:
             st.info(f"No activity logs recorded for {user_name}.")
         else:
             # Build color-coded HTML table matching gateway logs style
             log_rows = ""
-            for log in reversed(user_logs):
+            for log in all_logs:
                 status = log.get("status", "")
+                category = log.get("category", "")
                 # Color code: green for success, red for failed, yellow for pending
                 if status == "Success":
                     response_bg = "background-color: #dcfce7; color: #166534;"
@@ -188,9 +221,12 @@ def admin_panel_v2_view():
                     response_bg = "background-color: #fef3c7; color: #92400e;"
                 else:
                     response_bg = ""
+                # Category badge color
+                cat_color = {"GATEWAYS": "#3b82f6", "DIAGNOSIS": "#8b5cf6", "ADMIN": "#ef4444"}.get(category, "#6b7280")
+                cat_badge = f'<span style="display:inline-block;padding:1px 6px;border-radius:4px;background:{cat_color};color:white;font-size:10px;font-weight:600;margin-right:4px;">{category}</span>' if category else ""
                 log_rows += f"""<tr>
                     <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px; white-space: nowrap;">{log.get('timestamp', '')}</td>
-                    <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px; font-weight: 600;">{log.get('action', '')}</td>
+                    <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px; font-weight: 600;">{cat_badge}{log.get('action', '')}</td>
                     <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px; {response_bg} border-radius: 4px;">{log.get('detail', '')}</td>
                     <td style="padding: 8px 12px; border-bottom: 1px solid #e5e7eb; font-size: 13px; font-weight: 600; {response_bg}">{status}</td>
                 </tr>"""

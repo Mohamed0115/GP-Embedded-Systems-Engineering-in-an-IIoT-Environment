@@ -10,7 +10,7 @@ st.set_page_config(
 )
 
 # Core imports
-from core.state_manager import init_app_state
+from core.state_manager import init_app_state, clear_session_cache
 from core.theme_engine import apply_theme
 from hardware.gateway_bridge import ita, ctc
 
@@ -78,6 +78,7 @@ else:
                 
             st.markdown("<hr style='border: 1px solid rgba(100,100,100,0.2);'>", unsafe_allow_html=True)
             if st.button("Logout", use_container_width=True):
+                clear_session_cache()
                 st.session_state.logged_in = False
                 st.session_state.username = None
                 if 'user_role' in st.session_state: del st.session_state.user_role

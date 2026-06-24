@@ -201,10 +201,11 @@
     }
     .minimap-viewport:active { cursor: grabbing; }
 
-    /* ===== CHART SCROLL — Obsidian dot-grid background, left overflow fix ===== */
+    /* ===== CHART SCROLL — Obsidian dot-grid background, centered org tree ===== */
     #chart-scroll {
       overflow: auto; position: relative; min-height: 400px;
-      padding: 24px 40px 100px 200px;
+      max-height: 78vh;
+      padding: 24px 40px 24px 40px;
       background-color: #f5f5f5;
       background-image: radial-gradient(circle, #c4c4c4 1px, transparent 1px);
       background-size: 20px 20px;
@@ -348,8 +349,13 @@
     });
     sendMessage("streamlit:componentReady", { apiVersion: 1 });
     const resizeObserver = new ResizeObserver(() => {
-      const h = document.documentElement.scrollHeight || document.body.scrollHeight;
-      sendMessage("streamlit:setFrameHeight", { height: h + 20 });
+      // Use the chart-scroll container's actual rendered height, capped at viewport
+      const chartScroll = document.getElementById('chart-scroll');
+      const header = document.querySelector('.page-header');
+      const headerH = header ? header.offsetHeight : 50;
+      const chartH = chartScroll ? Math.min(chartScroll.scrollHeight, window.innerHeight * 0.8) : 400;
+      const h = headerH + chartH + 40;
+      sendMessage("streamlit:setFrameHeight", { height: h });
     });
     resizeObserver.observe(document.body);
 

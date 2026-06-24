@@ -2,7 +2,7 @@ import streamlit as st
 import asyncio
 import sys, os
 
-SIMULATION_MODE = True
+SIMULATION_MODE = False
 
 if SIMULATION_MODE:
     from Gateways_Sim.ITA.CDSR import connect as ita_conn, disconnect as ita_disconn

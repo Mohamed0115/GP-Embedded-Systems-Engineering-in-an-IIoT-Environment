@@ -8,7 +8,7 @@ import asyncio
 import threading
 import base64
 import os
-from core.state_manager import get_user_data, add_to_history
+from core.state_manager import get_user_data, add_to_history, log_user_activity
 from core.utils import compute_fft, compute_rms, convert_fft_units
 from views.new_diagnosis import get_all_points_for_selector
 # ============================================================================
@@ -330,13 +330,18 @@ def gateways_view():
             
         elif st.session_state.modal_vendor == "ITA":
             st.markdown("---")
-            st.markdown("#### ITA-110 Configuration (16 Channels)")
+            st.markdown("#### ITA Gateway Configuration")
             g_name = st.text_input("Gateway Name *", placeholder="Gateway-001")
             g_loc = st.text_input("Location", placeholder="Production Floor A")
             g_sn = st.text_input("Serial Number *", placeholder="ITA-120-E8F3B4")
+            g_model_sel = st.selectbox("Model Version *", ["ITA-110 (16 channels)", "ITA-120 (8 channels)"])
             g_ip = st.text_input("IP Address *", placeholder="192.168.1.130")
             g_port = st.number_input("Port *", min_value=1, max_value=65535, value=8020)
             g_net = st.selectbox("Network Type", options=["Ethernet", "WiFi"])
+            
+            # Parse model and channel count from selection
+            g_model = "ITA-110" if "ITA-110" in g_model_sel else "ITA-120"
+            g_channels = 16 if g_model == "ITA-110" else 8
             
             if st.button("Create Gateway", type="primary", use_container_width=True):
                 if not g_name or not g_sn or not g_ip:
@@ -345,14 +350,14 @@ def gateways_view():
                     new_gw = {
                         "name": g_name,
                         "location": g_loc or "Not specified",
-                        "model": "ITA-110",
+                        "model": g_model,
                         "sn": g_sn,
                         "status": "online",
                         "last_seen": "1s ago",
                         "connection": g_net,
                         "ip": g_ip,
                         "port": int(g_port),
-                        "channels": 16,
+                        "channels": g_channels,
                         "sampling": "Paused",
                         "date_added": datetime.datetime.now().strftime("%m/%d/%Y")
                     }
@@ -362,6 +367,7 @@ def gateways_view():
                     # This will INSERT a new row into the 'gateways' PostgreSQL table.
                     # The dict keys (name, location, model, sn, etc.) map directly to the table columns.
                     log_gateway_transaction("ADD_GATEWAY", f"Added gateway {g_name} ({g_ip}:{g_port})", "Success")
+                    log_user_activity(st.session_state.get('username', ''), 'GATEWAYS', 'ADD_GATEWAY', f"Added gateway {g_name} ({g_model}, {g_ip}:{g_port})")
                     # DB-NOTE [MODAL_VENDOR_CLEAR]: This is UI-only cleanup. Not for the database.
                     st.session_state.modal_vendor = None
                     st.success("Gateway added successfully!")
@@ -645,10 +651,12 @@ def gateways_view():
         # They hold the graph data ONLY while the "Take Reading" popup is open.
         # They are NOT saved to the database. The actual save happens further below (DB-TODO [SAVE_READING]).
         # DO NOT put these in the database.
-        if 'last_dialog_reading' not in st.session_state:
+        # RESET on each dialog open to avoid showing stale data from another channel.
+        if 'last_dialog_ch_key' not in st.session_state or st.session_state.last_dialog_ch_key != key:
             st.session_state.last_dialog_reading = None
             st.session_state.last_dialog_fft = None
             st.session_state.last_dialog_rms = None
+            st.session_state.last_dialog_ch_key = key
             
         if st.button("▶ Acquire Data", type="primary", use_container_width=True):
             with st.spinner("Communicating with ITA-110..."):
@@ -714,6 +722,7 @@ def gateways_view():
                     # WARNING: These arrays can contain thousands of numbers.
                     # For production, consider saving to .csv files and storing the file path.
                     
+                    log_user_activity(st.session_state.get('username', ''), 'GATEWAYS', 'TAKE_READING', f"CH{ch_num} on {gw_ip} — RMS={st.session_state.last_dialog_rms:.4f}")
                     st.success("Data Acquired successfully!")
                 except Exception as e:
                     st.error(f"Failed to acquire reading: {e}")
@@ -738,11 +747,22 @@ def gateways_view():
                 use_container_width=True
             )
             
+            # Determine chart color based on axis
+            axis_lower = config.get("axis", "").lower()
+            if "x axis" in axis_lower or "axial" in axis_lower or axis_lower.startswith("x") or axis_lower.startswith("a"):
+                plot_color = "#FF4B4B"  # Premium Red
+            elif "y axis" in axis_lower or "horizontal" in axis_lower or axis_lower.startswith("y") or axis_lower.startswith("h"):
+                plot_color = "#00D26A"  # Premium Green
+            elif "z" in axis_lower or "vertical" in axis_lower or axis_lower.startswith("z") or axis_lower.startswith("v"):
+                plot_color = "#4A90E2"  # Premium Blue
+            else:
+                plot_color = "#FF4B4B"
+
             # ===== Two tabs: Time Waveform and Spectrum =====
             tab_time, tab_freq = st.tabs(["Time Waveform", "Spectrum"])
             with tab_time:
                 t = np.linspace(0, len(cal_data)/sr_computed * 1000, len(cal_data))
-                fig_time = go.Figure(go.Scatter(x=t, y=cal_data, line=dict(color="#FF4B4B")))
+                fig_time = go.Figure(go.Scatter(x=t, y=cal_data, line=dict(color=plot_color)))
                 fig_time.update_layout(
                     xaxis_title="Time (ms)", 
                     yaxis_title=f"Value ({config.get('unit', 'mV').split('/')[-1] if '/' in config.get('unit', 'mV') else config.get('unit', 'mV')})", 
@@ -785,7 +805,7 @@ def gateways_view():
                         plot_fft = fft_list
                         y_label = f"Amplitude ({native_unit})"
                     
-                    fig_fft = go.Figure(go.Scatter(x=f_list, y=plot_fft, line=dict(color="#FF4B4B")))
+                    fig_fft = go.Figure(go.Scatter(x=f_list, y=plot_fft, line=dict(color=plot_color)))
                     fig_fft.update_layout(
                         xaxis_title="Frequency (Hz)", 
                         yaxis_title=y_label, 
@@ -1100,7 +1120,6 @@ def gateways_view():
                 #         "daily_time": datetime.time(8, 0),
                 #         "enabled": True
                 #     })
-                st.rerun()
         
         # ===== Render each group as a card =====
         groups = st.session_state[groups_key]
