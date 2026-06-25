@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,201 +10,602 @@
   <script>
     tailwind.config = {
       darkMode: 'class',
-      theme: { extend: { colors: {
-        company: '#1E293B', plant: '#0F766E', zone: '#1D4ED8',
-        machine: '#7C3AED', point: '#BE185D'
-      }}}
+      theme: {
+        extend: {
+          colors: {
+            company: '#1E293B', plant: '#0F766E', zone: '#1D4ED8',
+            machine: '#7C3AED', point: '#BE185D'
+          }
+        }
+      }
     }
   </script>
   <style>
-    body { background: transparent !important; font-family: ui-sans-serif, system-ui, sans-serif; margin: 0; padding: 0; }
+    body {
+      background: transparent !important;
+      font-family: ui-sans-serif, system-ui, sans-serif;
+      margin: 0;
+      padding: 0;
+    }
 
     /* ===== ORG CHART TREE — Layout only, CSS connectors removed; SVG draws them ===== */
-    .org-tree { display: flex; justify-content: center; }
-    .org-tree ul {
-      display: flex; justify-content: center; padding-top: 44px; position: relative;
-      list-style: none; margin: 0; padding-left: 0; padding-right: 0; gap: 12px; flex-wrap: nowrap;
+    .org-tree {
+      display: flex;
+      justify-content: center;
     }
-    .org-tree li { display: flex; flex-direction: column; align-items: center; position: relative; padding: 44px 8px 0; flex-shrink: 0; }
+
+    .org-tree ul {
+      display: flex;
+      justify-content: center;
+      padding-top: 44px;
+      position: relative;
+      list-style: none;
+      margin: 0;
+      padding-left: 0;
+      padding-right: 0;
+      gap: 12px;
+      flex-wrap: nowrap;
+    }
+
+    .org-tree li {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+      padding: 44px 8px 0;
+      flex-shrink: 0;
+    }
+
     /* All CSS connector pseudo-elements removed — SVG handles connectors */
-    .org-tree li::before, .org-tree li::after { display: none; }
-    .org-tree ul::before { display: none; }
-    .org-tree > li { padding-top: 0; }
-    .org-tree > ul::before { display: none; }
-    .org-tree > ul > li { padding-top: 0; }
+    .org-tree li::before,
+    .org-tree li::after {
+      display: none;
+    }
+
+    .org-tree ul::before {
+      display: none;
+    }
+
+    .org-tree>li {
+      padding-top: 0;
+    }
+
+    .org-tree>ul::before {
+      display: none;
+    }
+
+    .org-tree>ul>li {
+      padding-top: 0;
+    }
 
     /* Hide folded children */
-    .org-tree ul.folded { display: none !important; }
+    .org-tree ul.folded {
+      display: none !important;
+    }
 
     /* ===== CARD STYLES — centered, modern ===== */
     .node-card {
-      position: relative; min-width: 160px; max-width: 220px; border-radius: 12px;
-      border: 2.5px solid #94a3b8; padding: 12px 14px 10px; cursor: default;
-      background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.07);
+      position: relative;
+      min-width: 160px;
+      max-width: 220px;
+      border-radius: 12px;
+      border: 2.5px solid #94a3b8;
+      padding: 12px 14px 10px;
+      cursor: default;
+      background: #fff;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.07);
       transition: box-shadow 0.2s ease, transform 0.15s ease;
       text-align: center;
     }
-    .node-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.12); transform: translateY(-2px); }
 
-    .node-card[data-type="company"] { border-color: #1E293B; }
-    .node-card[data-type="plant"]   { border-color: #0F766E; }
-    .node-card[data-type="zone"]    { border-color: #1D4ED8; }
-    .node-card[data-type="machine"] { border-color: #7C3AED; }
-    .node-card[data-type="point"]   { border-color: #BE185D; }
+    .node-card:hover {
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+      transform: translateY(-2px);
+    }
 
-    .node-card .card-name { font-weight: 700; font-size: 13px; color: #1e293b; line-height: 1.4; }
-    .node-card .card-sub  { font-size: 11px; color: #64748b; margin-top: 3px; }
+    .node-card[data-type="company"] {
+      border-color: #1E293B;
+    }
+
+    .node-card[data-type="plant"] {
+      border-color: #0F766E;
+    }
+
+    .node-card[data-type="zone"] {
+      border-color: #1D4ED8;
+    }
+
+    .node-card[data-type="machine"] {
+      border-color: #7C3AED;
+    }
+
+    .node-card[data-type="point"] {
+      border-color: #BE185D;
+    }
+
+    .node-card .card-name {
+      font-weight: 700;
+      font-size: 13px;
+      color: #1e293b;
+      line-height: 1.4;
+    }
+
+    .node-card .card-sub {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 3px;
+    }
 
     /* Status indicator — machine cards only, no auto-cycle */
     .status-rect {
-      position: absolute; top: 7px; right: 7px; width: 16px; height: 12px;
-      border-radius: 3px; cursor: pointer; border: 1px solid rgba(0,0,0,0.15);
+      position: absolute;
+      top: 7px;
+      right: 7px;
+      width: 16px;
+      height: 12px;
+      border-radius: 3px;
+      cursor: pointer;
+      border: 1px solid rgba(0, 0, 0, 0.15);
       transition: transform 0.15s ease;
     }
-    .status-rect:hover { transform: scale(1.3); }
+
+    .status-rect:hover {
+      transform: scale(1.3);
+    }
 
     /* Status color picker popup */
     .status-picker-popup {
-      position: fixed; background: #fff; border: 1.5px solid #e2e8f0;
-      border-radius: 10px; padding: 7px 9px; display: flex; gap: 6px;
-      z-index: 10000; box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+      position: fixed;
+      background: #fff;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 7px 9px;
+      display: flex;
+      gap: 6px;
+      z-index: 10000;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
       animation: ctx-in 0.12s ease;
     }
+
     .sp-dot {
-      width: 20px; height: 15px; border-radius: 4px; cursor: pointer;
-      border: 1.5px solid rgba(0,0,0,0.12); transition: transform 0.1s;
+      width: 20px;
+      height: 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      border: 1.5px solid rgba(0, 0, 0, 0.12);
+      transition: transform 0.1s;
     }
-    .sp-dot:hover { transform: scale(1.3); }
+
+    .sp-dot:hover {
+      transform: scale(1.3);
+    }
 
     /* Action buttons */
     .card-actions {
-      display: flex; justify-content: center; gap: 3px; margin-top: 5px;
-      opacity: 0; transition: opacity 0.2s ease;
+      display: flex;
+      justify-content: center;
+      gap: 3px;
+      margin-top: 5px;
+      opacity: 0;
+      transition: opacity 0.2s ease;
     }
-    .node-card-wrapper:hover .card-actions { opacity: 1; }
+
+    .node-card-wrapper:hover .card-actions {
+      opacity: 1;
+    }
+
     .card-actions button {
-      width: 28px; height: 28px; border: 1px solid #e2e8f0; border-radius: 7px;
-      background: #fff; cursor: pointer; font-size: 12px; display: flex;
-      align-items: center; justify-content: center;
+      width: 28px;
+      height: 28px;
+      border: 1px solid #e2e8f0;
+      border-radius: 7px;
+      background: #fff;
+      cursor: pointer;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       transition: background 0.15s ease, border-color 0.15s ease;
     }
-    .card-actions button:hover { background: #f1f5f9; border-color: #94a3b8; }
-    .card-actions button.act-edit:hover   { background: #dbeafe; border-color: #3b82f6; }
-    .card-actions button.act-add:hover    { background: #dcfce7; border-color: #22c55e; }
-    .card-actions button.act-del:hover    { background: #fee2e2; border-color: #ef4444; }
-    .card-actions button.act-fold:hover   { background: #fef3c7; border-color: #f59e0b; }
-    .card-actions button.act-open:hover   { background: #ede9fe; border-color: #7c3aed; }
+
+    .card-actions button:hover {
+      background: #f1f5f9;
+      border-color: #94a3b8;
+    }
+
+    .card-actions button.act-edit:hover {
+      background: #dbeafe;
+      border-color: #3b82f6;
+    }
+
+    .card-actions button.act-add:hover {
+      background: #dcfce7;
+      border-color: #22c55e;
+    }
+
+    .card-actions button.act-del:hover {
+      background: #fee2e2;
+      border-color: #ef4444;
+    }
+
+    .card-actions button.act-fold:hover {
+      background: #fef3c7;
+      border-color: #f59e0b;
+    }
+
+    .card-actions button.act-open:hover {
+      background: #ede9fe;
+      border-color: #7c3aed;
+    }
 
     /* ===== MODAL STYLES ===== */
     .modal-overlay {
-      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.5); display: flex; align-items: center;
-      justify-content: center; z-index: 9999; backdrop-filter: blur(4px);
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      backdrop-filter: blur(4px);
     }
+
     .modal-box {
-      background: #fff; border-radius: 14px; padding: 24px; width: 90%; max-width: 520px;
-      max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+      background: #fff;
+      border-radius: 14px;
+      padding: 24px;
+      width: 90%;
+      max-width: 520px;
+      max-height: 85vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
       animation: modal-in 0.25s ease;
     }
-    @keyframes modal-in { from { opacity:0; transform: scale(0.95) translateY(10px); } to { opacity:1; transform: scale(1) translateY(0); } }
-    .modal-box h3 { font-size: 18px; font-weight: 700; color: #1e293b; margin: 0 0 16px 0; }
-    .modal-box label { display: block; font-size: 13px; font-weight: 600; color: #475569; margin: 12px 0 4px 0; }
-    .modal-box input[type="text"], .modal-box input[type="number"], .modal-box select {
-      width: 100%; padding: 8px 12px; border: 1.5px solid #e2e8f0; border-radius: 8px;
-      font-size: 14px; outline: none; transition: border-color 0.2s ease; box-sizing: border-box;
+
+    @keyframes modal-in {
+      from {
+        opacity: 0;
+        transform: scale(0.95) translateY(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
     }
-    .modal-box input:focus, .modal-box select:focus { border-color: #3b82f6; }
-    .modal-box .btn-row { display: flex; gap: 10px; margin-top: 20px; }
+
+    .modal-box h3 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1e293b;
+      margin: 0 0 16px 0;
+    }
+
+    .modal-box label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #475569;
+      margin: 12px 0 4px 0;
+    }
+
+    .modal-box input[type="text"],
+    .modal-box input[type="number"],
+    .modal-box select {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s ease;
+      box-sizing: border-box;
+    }
+
+    .modal-box input:focus,
+    .modal-box select:focus {
+      border-color: #3b82f6;
+    }
+
+    .modal-box .btn-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
     .modal-box .btn-cancel {
-      flex: 1; padding: 10px; border: 1.5px solid #e2e8f0; border-radius: 8px;
-      background: #fff; cursor: pointer; font-weight: 600; font-size: 14px; color: #64748b;
+      flex: 1;
+      padding: 10px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 8px;
+      background: #fff;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      color: #64748b;
     }
-    .modal-box .btn-cancel:hover { background: #f8fafc; }
+
+    .modal-box .btn-cancel:hover {
+      background: #f8fafc;
+    }
+
     .modal-box .btn-primary {
-      flex: 1; padding: 10px; border: none; border-radius: 8px;
-      background: #22c55e; color: #fff; cursor: pointer; font-weight: 600; font-size: 14px;
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      background: #22c55e;
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
     }
-    .modal-box .btn-primary:hover { background: #16a34a; }
+
+    .modal-box .btn-primary:hover {
+      background: #16a34a;
+    }
+
     .modal-box .btn-danger {
-      flex: 1; padding: 10px; border: none; border-radius: 8px;
-      background: #ef4444; color: #fff; cursor: pointer; font-weight: 600; font-size: 14px;
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      background: #ef4444;
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
     }
-    .modal-box .btn-danger:hover { background: #dc2626; }
+
+    .modal-box .btn-danger:hover {
+      background: #dc2626;
+    }
 
     /* Photo upload area */
     .photo-upload-area {
-      border: 2px dashed #cbd5e1; border-radius: 10px; padding: 20px;
-      text-align: center; cursor: pointer; transition: border-color 0.2s; position: relative;
+      border: 2px dashed #cbd5e1;
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      position: relative;
     }
-    .photo-upload-area:hover { border-color: #3b82f6; }
-    .photo-upload-area input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-    .photo-upload-area img { max-width: 100%; max-height: 200px; border-radius: 8px; }
+
+    .photo-upload-area:hover {
+      border-color: #3b82f6;
+    }
+
+    .photo-upload-area input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .photo-upload-area img {
+      max-width: 100%;
+      max-height: 200px;
+      border-radius: 8px;
+    }
 
     /* Pin placement canvas */
     .pin-canvas-wrap {
-      position: relative; display: block; margin-top: 8px; cursor: crosshair;
-      border: 2px solid #e2e8f0; border-radius: 8px; overflow: hidden; width: 100%;
+      position: relative;
+      display: block;
+      margin-top: 8px;
+      cursor: crosshair;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      overflow: hidden;
+      width: 100%;
     }
-    .pin-canvas-wrap img { display: block; width: 100%; max-height: 280px; object-fit: contain; user-select: none; pointer-events: none; }
+
+    .pin-canvas-wrap img {
+      display: block;
+      width: 100%;
+      max-height: 280px;
+      object-fit: contain;
+      user-select: none;
+      pointer-events: none;
+    }
+
     .pin-dot {
-      position: absolute; width: 18px; height: 18px; border-radius: 50%;
-      background: #ef4444; border: 2px solid #fff; transform: translate(-50%, -50%);
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3); font-size: 9px; color: #fff;
-      display: flex; align-items: center; justify-content: center; font-weight: 700;
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #ef4444;
+      border: 2px solid #fff;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+      font-size: 9px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
     }
-    .pin-dot.selectable { cursor: pointer; background: #3b82f6; }
-    .pin-dot.selectable:hover { background: #2563eb; transform: translate(-50%, -50%) scale(1.3); }
-    .pin-dot.selected { background: #22c55e; transform: translate(-50%, -50%) scale(1.2); }
-    .pin-dot.assigned { background: #94a3b8; cursor: not-allowed; opacity: 0.5; }
+
+    .pin-dot.selectable {
+      cursor: pointer;
+      background: #3b82f6;
+    }
+
+    .pin-dot.selectable:hover {
+      background: #2563eb;
+      transform: translate(-50%, -50%) scale(1.3);
+    }
+
+    .pin-dot.selected {
+      background: #22c55e;
+      transform: translate(-50%, -50%) scale(1.2);
+    }
+
+    .pin-dot.assigned {
+      background: #94a3b8;
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
 
     /* Card thumbnail wrap */
     .thumb-wrap {
-      position: relative; display: block; margin-top: 8px;
-      border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; width: 100%;
+      position: relative;
+      display: block;
+      margin-top: 8px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      overflow: hidden;
+      width: 100%;
     }
-    .thumb-wrap img { display: block; width: 100%; max-height: 80px; object-fit: cover; }
+
+    .thumb-wrap img {
+      display: block;
+      width: 100%;
+      max-height: 80px;
+      object-fit: cover;
+    }
 
     /* ===== POINT DETAIL VIEW ===== */
-    .point-detail { padding: 8px; }
-    .breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 14px; color: #64748b; flex-wrap: wrap; margin-bottom: 16px; }
-    .breadcrumb a { color: #3b82f6; text-decoration: none; cursor: pointer; font-weight: 500; }
-    .breadcrumb a:hover { text-decoration: underline; }
-    .breadcrumb .sep { color: #cbd5e1; }
-    .breadcrumb .current { font-weight: 700; color: #1e293b; }
-
-    .tabs-bar { display: flex; gap: 0; border-bottom: 2px solid #e2e8f0; margin-bottom: 16px; overflow-x: auto; }
-    .tab-btn {
-      padding: 10px 18px; font-size: 13px; font-weight: 600; color: #64748b;
-      cursor: pointer; border: none; background: none; white-space: nowrap;
-      border-bottom: 3px solid transparent; transition: all 0.2s ease;
+    .point-detail {
+      padding: 8px;
     }
-    .tab-btn:hover { color: #1e293b; background: #f8fafc; }
-    .tab-btn.active { color: #1e293b; border-bottom-color: #3b82f6; }
 
-    .tab-content { min-height: 200px; }
-    .coming-soon { text-align: center; padding: 60px 20px; color: #94a3b8; font-size: 16px; }
-    .coming-soon svg { width: 48px; height: 48px; margin: 0 auto 12px; }
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 14px;
+      color: #64748b;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
 
-    .axis-section { margin-bottom: 24px; }
-    .axis-label { font-size: 15px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
-    .axis-stats { font-size: 12px; color: #64748b; margin-bottom: 8px; }
+    .breadcrumb a {
+      color: #3b82f6;
+      text-decoration: none;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .breadcrumb a:hover {
+      text-decoration: underline;
+    }
+
+    .breadcrumb .sep {
+      color: #cbd5e1;
+    }
+
+    .breadcrumb .current {
+      font-weight: 700;
+      color: #1e293b;
+    }
+
+    .tabs-bar {
+      display: flex;
+      gap: 0;
+      border-bottom: 2px solid #e2e8f0;
+      margin-bottom: 16px;
+      overflow-x: auto;
+    }
+
+    .tab-btn {
+      padding: 10px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #64748b;
+      cursor: pointer;
+      border: none;
+      background: none;
+      white-space: nowrap;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s ease;
+    }
+
+    .tab-btn:hover {
+      color: #1e293b;
+      background: #f8fafc;
+    }
+
+    .tab-btn.active {
+      color: #1e293b;
+      border-bottom-color: #3b82f6;
+    }
+
+    .tab-content {
+      min-height: 200px;
+    }
+
+    .coming-soon {
+      text-align: center;
+      padding: 60px 20px;
+      color: #94a3b8;
+      font-size: 16px;
+    }
+
+    .coming-soon svg {
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 12px;
+    }
+
+    .axis-section {
+      margin-bottom: 24px;
+    }
+
+    .axis-label {
+      font-size: 15px;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 4px;
+    }
+
+    .axis-stats {
+      font-size: 12px;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
 
     /* ===== MINIMAP ===== */
     .minimap-container {
-      position: fixed; bottom: 16px; right: 16px; width: 200px; height: 140px;
-      background: #f5f5f5; border: 2px solid #e2e8f0; border-radius: 10px;
-      overflow: hidden; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      width: 200px;
+      height: 140px;
+      background: #f5f5f5;
+      border: 2px solid #e2e8f0;
+      border-radius: 10px;
+      overflow: hidden;
+      z-index: 100;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     }
-    .minimap-container canvas { width: 100%; height: 100%; }
+
+    .minimap-container canvas {
+      width: 100%;
+      height: 100%;
+    }
+
     .minimap-viewport {
-      position: absolute; border: 2px solid #3b82f6; background: rgba(59,130,246,0.1);
-      cursor: grab; border-radius: 3px;
+      position: absolute;
+      border: 2px solid #3b82f6;
+      background: rgba(59, 130, 246, 0.1);
+      cursor: grab;
+      border-radius: 3px;
     }
-    .minimap-viewport:active { cursor: grabbing; }
+
+    .minimap-viewport:active {
+      cursor: grabbing;
+    }
 
     /* ===== CHART SCROLL — Obsidian dot-grid background, centered org tree ===== */
     #chart-scroll {
-      overflow: auto; position: relative; min-height: 400px;
+      overflow: auto;
+      position: relative;
+      min-height: 400px;
       max-height: 78vh;
       padding: 24px 40px 24px 40px;
       background-color: #f5f5f5;
@@ -213,116 +615,321 @@
 
     /* SVG connector overlay */
     #connector-svg {
-      position: absolute; top: 0; left: 0;
-      pointer-events: none; overflow: visible; z-index: 0;
+      position: absolute;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+      overflow: visible;
+      z-index: 0;
     }
 
     /* Org tree sits above SVG */
-    .org-tree { position: relative; z-index: 1; }
+    .org-tree {
+      position: relative;
+      z-index: 1;
+    }
 
     /* ===== HEADER ===== */
     .page-header {
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 12px 16px; border-bottom: 1px solid #e2e8f0; margin-bottom: 0;
-      background: #fff; gap: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      border-bottom: 1px solid #e2e8f0;
+      margin-bottom: 0;
+      background: #fff;
+      gap: 12px;
     }
-    .page-header h2 { font-size: 18px; font-weight: 700; color: #1e293b; margin: 0; flex-shrink: 0; }
-    .header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+    .page-header h2 {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1e293b;
+      margin: 0;
+      flex-shrink: 0;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
 
     /* Search in header (next to Add Plant button) */
     .header-search {
-      display: flex; align-items: center; gap: 4px;
-      border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 5px 9px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 5px 9px;
       background: #f8fafc;
     }
+
     .header-search input {
-      border: none; outline: none; font-size: 13px; width: 160px;
-      background: transparent; padding: 1px 4px; color: #1e293b;
+      border: none;
+      outline: none;
+      font-size: 13px;
+      width: 160px;
+      background: transparent;
+      padding: 1px 4px;
+      color: #1e293b;
     }
+
     .header-search button {
-      width: 24px; height: 24px; border: none; border-radius: 5px;
-      cursor: pointer; display: flex; align-items: center; justify-content: center;
-      font-size: 12px; background: transparent; color: #94a3b8;
+      width: 24px;
+      height: 24px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      background: transparent;
+      color: #94a3b8;
     }
-    .header-search button:hover { background: #e2e8f0; color: #475569; }
+
+    .header-search button:hover {
+      background: #e2e8f0;
+      color: #475569;
+    }
 
     .add-plant-btn {
-      display: flex; align-items: center; gap: 6px; padding: 8px 16px;
-      border: none; border-radius: 8px; background: #22c55e; color: #fff;
-      font-weight: 600; font-size: 13px; cursor: pointer;
-      transition: background 0.2s ease, transform 0.1s ease; white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 8px;
+      background: #22c55e;
+      color: #fff;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.1s ease;
+      white-space: nowrap;
     }
-    .add-plant-btn:hover { background: #16a34a; transform: translateY(-1px); }
-    .add-plant-btn svg { width: 16px; height: 16px; }
+
+    .add-plant-btn:hover {
+      background: #16a34a;
+      transform: translateY(-1px);
+    }
+
+    .add-plant-btn svg {
+      width: 16px;
+      height: 16px;
+    }
 
     /* Active filter badge */
     .filter-badge {
-      display: inline-flex; align-items: center; gap: 6px;
-      background: #eff6ff; border: 1.5px solid #bfdbfe; border-radius: 20px;
-      padding: 4px 12px 4px 10px; font-size: 12px; font-weight: 600; color: #1d4ed8;
-      cursor: pointer; white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #eff6ff;
+      border: 1.5px solid #bfdbfe;
+      border-radius: 20px;
+      padding: 4px 12px 4px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #1d4ed8;
+      cursor: pointer;
+      white-space: nowrap;
     }
-    .filter-badge:hover { background: #dbeafe; }
+
+    .filter-badge:hover {
+      background: #dbeafe;
+    }
 
     /* Empty state */
     .empty-state {
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      padding: 80px 20px; color: #94a3b8;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 20px;
+      color: #94a3b8;
     }
-    .empty-state svg { width: 80px; height: 80px; margin-bottom: 16px; opacity: 0.5; }
-    .empty-state p { font-size: 16px; margin: 4px 0; }
-    .empty-state .hint { font-size: 13px; }
+
+    .empty-state svg {
+      width: 80px;
+      height: 80px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    .empty-state p {
+      font-size: 16px;
+      margin: 4px 0;
+    }
+
+    .empty-state .hint {
+      font-size: 13px;
+    }
 
     /* ===== CONTEXT MENU & MILLER COLUMNS ===== */
-    .ctx-menu, .miller-panel {
-      position: fixed; background: #fff; border: 1.5px solid #e2e8f0;
-      border-radius: 10px; box-shadow: 0 8px 28px rgba(0,0,0,0.14);
-      z-index: 8000; min-width: 200px; padding: 4px 0;
+    .ctx-menu,
+    .miller-panel {
+      position: fixed;
+      background: #fff;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.14);
+      z-index: 8000;
+      min-width: 200px;
+      padding: 4px 0;
       animation: ctx-in 0.14s ease;
     }
-    .miller-panel { z-index: 8001; min-width: 180px; max-height: 320px; overflow-y: auto; }
-    @keyframes ctx-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+
+    .miller-panel {
+      z-index: 8001;
+      min-width: 180px;
+      max-height: 320px;
+      overflow-y: auto;
+    }
+
+    @keyframes ctx-in {
+      from {
+        opacity: 0;
+        transform: scale(0.96);
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
 
     .ctx-item {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 9px 14px; font-size: 13px; font-weight: 500; color: #1e293b;
-      cursor: pointer; user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 14px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #1e293b;
+      cursor: pointer;
+      user-select: none;
     }
-    .ctx-item:hover { background: #f1f5f9; }
-    .ctx-arrow { color: #94a3b8; font-size: 10px; margin-left: 6px; }
-    .ctx-divider { height: 1px; background: #f1f5f9; margin: 3px 0; }
+
+    .ctx-item:hover {
+      background: #f1f5f9;
+    }
+
+    .ctx-arrow {
+      color: #94a3b8;
+      font-size: 10px;
+      margin-left: 6px;
+    }
+
+    .ctx-divider {
+      height: 1px;
+      background: #f1f5f9;
+      margin: 3px 0;
+    }
 
     .miller-item {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 8px 14px; font-size: 13px; color: #1e293b; cursor: pointer; user-select: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 14px;
+      font-size: 13px;
+      color: #1e293b;
+      cursor: pointer;
+      user-select: none;
     }
-    .miller-item:hover { background: #f1f5f9; }
-    .miller-item.active { background: #eff6ff; color: #2563eb; font-weight: 600; }
+
+    .miller-item:hover {
+      background: #f1f5f9;
+    }
+
+    .miller-item.active {
+      background: #eff6ff;
+      color: #2563eb;
+      font-weight: 600;
+    }
 
     .miller-color-row {
-      display: flex; align-items: center; gap: 10px;
-      padding: 8px 14px; cursor: pointer; font-size: 13px; color: #1e293b;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      cursor: pointer;
+      font-size: 13px;
+      color: #1e293b;
     }
-    .miller-color-row:hover { background: #f1f5f9; }
-    .miller-color-row.active { background: #eff6ff; color: #2563eb; font-weight: 600; }
-    .miller-color-dot { width: 22px; height: 15px; border-radius: 4px; border: 1px solid rgba(0,0,0,0.1); flex-shrink: 0; }
+
+    .miller-color-row:hover {
+      background: #f1f5f9;
+    }
+
+    .miller-color-row.active {
+      background: #eff6ff;
+      color: #2563eb;
+      font-weight: 600;
+    }
+
+    .miller-color-dot {
+      width: 22px;
+      height: 15px;
+      border-radius: 4px;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      flex-shrink: 0;
+    }
 
     /* ===== LIGHTBOX ===== */
     .lightbox {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 99999;
-      display: flex; align-items: center; justify-content: center; animation: fade-in 0.2s ease;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 99999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: fade-in 0.2s ease;
     }
-    @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-    .lightbox img { max-width: 90%; max-height: 90%; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+
+    @keyframes fade-in {
+      from {
+        opacity: 0;
+      }
+
+      to {
+        opacity: 1;
+      }
+    }
+
+    .lightbox img {
+      max-width: 90%;
+      max-height: 90%;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    }
+
     .lightbox .close-btn {
-      position: absolute; top: 20px; right: 24px; font-size: 28px; color: #fff;
-      cursor: pointer; width: 40px; height: 40px; border-radius: 50%;
-      display: flex; align-items: center; justify-content: center;
-      background: rgba(255,255,255,0.15); border: none;
+      position: absolute;
+      top: 20px;
+      right: 24px;
+      font-size: 28px;
+      color: #fff;
+      cursor: pointer;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.15);
+      border: none;
     }
-    .lightbox .close-btn:hover { background: rgba(255,255,255,0.3); }
+
+    .lightbox .close-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
   </style>
 </head>
+
 <body>
   <div id="app"></div>
 
@@ -339,11 +946,11 @@
     window.addEventListener("message", (event) => {
       const msg = event.data;
       if (msg.type === "streamlit:render") {
-        diagData    = msg.args.diag_data  || { nodes: {}, root_companies: [] };
-        currentMode = msg.args.mode       || "main";
-        pointData   = msg.args.point_data || null;
-        breadcrumb  = msg.args.breadcrumb || [];
-        userRole    = msg.args.user_role  || "Maintenance Engineer";
+        diagData = msg.args.diag_data || { nodes: {}, root_companies: [] };
+        currentMode = msg.args.mode || "main";
+        pointData = msg.args.point_data || null;
+        breadcrumb = msg.args.breadcrumb || [];
+        userRole = msg.args.user_role || "Maintenance Engineer";
         render();
       }
     });
@@ -362,20 +969,20 @@
     // ===================================================================
     // STATE
     // ===================================================================
-    let diagData    = { nodes: {}, root_companies: [] };
+    let diagData = { nodes: {}, root_companies: [] };
     let currentMode = "main";
-    let pointData   = null;
-    let breadcrumb  = [];
+    let pointData = null;
+    let breadcrumb = [];
     let foldedNodes = {};
     let searchQuery = "";
-    let activeTab   = "time_waveform";
-    let userRole    = "Maintenance Engineer";
+    let activeTab = "time_waveform";
+    let userRole = "Maintenance Engineer";
     let activeFilter = null; // { type: "plant", plant_id } | { type: "condition", color }
 
     // Temp modal state
-    let modalPins        = [];
-    let modalPhotoB64    = "";
-    let modalSensorB64   = "";
+    let modalPins = [];
+    let modalPhotoB64 = "";
+    let modalSensorB64 = "";
     let modalSelectedPin = -1;
 
     const LEVEL_COLORS = {
@@ -391,13 +998,13 @@
       yellow: "Yellow (Moderate)", green: "Green (Good)", blue: "Blue (Normal)"
     };
     const STATUS_LABELS = ["gray", "red", "orange", "yellow", "green", "blue"];
-    const CHILD_TYPE   = { company: "plant", plant: "zone", zone: "machine", machine: "point" };
-    const TYPE_LABELS  = { company: "Company", plant: "Plant", zone: "Zone/Area", machine: "Machine", point: "Point" };
+    const CHILD_TYPE = { company: "plant", plant: "zone", zone: "machine", machine: "point" };
+    const TYPE_LABELS = { company: "Company", plant: "Plant", zone: "Zone/Area", machine: "Machine", point: "Point" };
     const VIB_CATS = ["N/A", "VERY SMOOTH", "SMOOTH", "STANDARD", "ROUGH", "VERY ROUGH"];
-    const OP_SIGS  = ["N/A", "ONE", "TWO", "THREE", "FOUR", "FIVE"];
+    const OP_SIGS = ["N/A", "ONE", "TWO", "THREE", "FOUR", "FIVE"];
 
     const isMaintenance = () => userRole === "Maintenance Engineer";
-    const canEdit       = () => !isMaintenance();
+    const canEdit = () => !isMaintenance();
 
     // ===================================================================
     // MAIN RENDER
@@ -529,8 +1136,8 @@
       if (!node) return "";
       if (visibleSet && !visibleSet.has(nodeId)) return "";
 
-      const isFolded  = foldedNodes[nodeId] === true;
-      const children  = node.children || [];
+      const isFolded = foldedNodes[nodeId] === true;
+      const children = node.children || [];
       const hasChildren = children.length > 0;
 
       const cardHTML = renderCard(node);
@@ -568,10 +1175,10 @@
       }
 
       // Action buttons — role-aware
-      const childType   = CHILD_TYPE[node.type];
+      const childType = CHILD_TYPE[node.type];
       const canOpenPage = node.type === "point";
       const hasChildren = (node.children || []).length > 0;
-      const isFolded    = foldedNodes[node.id] === true;
+      const isFolded = foldedNodes[node.id] === true;
 
       let actions = `<div class="card-actions">`;
       if (canEdit()) {
@@ -603,17 +1210,17 @@
       const pins = node.pins || [];
       let pinsHTML = "";
       for (let i = 0; i < pins.length; i++) {
-        pinsHTML += `<div class="pin-dot" style="left:${pins[i].x*100}%;top:${pins[i].y*100}%">${i+1}</div>`;
+        pinsHTML += `<div class="pin-dot" style="left:${pins[i].x * 100}%;top:${pins[i].y * 100}%">${i + 1}</div>`;
       }
       return `<div class="thumb-wrap">${pinsHTML}<img src="${node.photo_b64}"></div>`;
     }
 
     function renderPointThumb(pointNode, machineNode) {
       const pinIdx = pointNode.pin_index;
-      const pins   = machineNode.pins || [];
-      let pinHTML  = "";
+      const pins = machineNode.pins || [];
+      let pinHTML = "";
       if (pinIdx >= 0 && pinIdx < pins.length) {
-        pinHTML = `<div class="pin-dot selected" style="left:${pins[pinIdx].x*100}%;top:${pins[pinIdx].y*100}%">●</div>`;
+        pinHTML = `<div class="pin-dot selected" style="left:${pins[pinIdx].x * 100}%;top:${pins[pinIdx].y * 100}%">●</div>`;
       }
       return `<div class="thumb-wrap" style="max-height:70px;">${pinHTML}<img src="${machineNode.photo_b64}" style="max-height:70px;"></div>`;
     }
@@ -628,7 +1235,7 @@
       const picker = document.createElement("div");
       picker.className = "status-picker-popup";
       picker.id = "status-picker-popup";
-      picker.style.top  = (rect.bottom + 5) + "px";
+      picker.style.top = (rect.bottom + 5) + "px";
       picker.style.left = Math.max(4, rect.left - 80) + "px";
       for (const [label, color] of Object.entries(STATUS_COLORS)) {
         const dot = document.createElement("div");
@@ -655,13 +1262,13 @@
     // ===================================================================
     function drawConnectors() {
       const scroll = document.getElementById("chart-scroll");
-      const svg    = document.getElementById("connector-svg");
+      const svg = document.getElementById("connector-svg");
       if (!scroll || !svg) return;
 
       const W = scroll.scrollWidth;
       const H = scroll.scrollHeight;
-      svg.setAttribute("width",   W);
-      svg.setAttribute("height",  H);
+      svg.setAttribute("width", W);
+      svg.setAttribute("height", H);
       svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
 
       svg.innerHTML = `<defs>
@@ -670,7 +1277,7 @@
         </marker>
       </defs>`;
 
-      const nodes     = diagData.nodes || {};
+      const nodes = diagData.nodes || {};
       const scrollRect = scroll.getBoundingClientRect();
 
       for (const [nodeId, node] of Object.entries(nodes)) {
@@ -683,19 +1290,19 @@
           const pR = pCard.getBoundingClientRect();
           const cR = cCard.getBoundingClientRect();
 
-          const x1 = pR.left - scrollRect.left + scroll.scrollLeft + pR.width  / 2;
-          const y1 = pR.top  - scrollRect.top  + scroll.scrollTop  + pR.height;
-          const x2 = cR.left - scrollRect.left + scroll.scrollLeft + cR.width  / 2;
-          const y2 = cR.top  - scrollRect.top  + scroll.scrollTop;
+          const x1 = pR.left - scrollRect.left + scroll.scrollLeft + pR.width / 2;
+          const y1 = pR.top - scrollRect.top + scroll.scrollTop + pR.height;
+          const x2 = cR.left - scrollRect.left + scroll.scrollLeft + cR.width / 2;
+          const y2 = cR.top - scrollRect.top + scroll.scrollTop;
 
           const dy = Math.max(20, Math.abs(y2 - y1) * 0.48);
 
           const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-          path.setAttribute("d", `M ${x1} ${y1} C ${x1} ${y1+dy}, ${x2} ${y2-dy}, ${x2} ${y2}`);
-          path.setAttribute("stroke",       "#aab4c4");
+          path.setAttribute("d", `M ${x1} ${y1} C ${x1} ${y1 + dy}, ${x2} ${y2 - dy}, ${x2} ${y2}`);
+          path.setAttribute("stroke", "#aab4c4");
           path.setAttribute("stroke-width", "1.8");
-          path.setAttribute("fill",         "none");
-          path.setAttribute("marker-end",   "url(#arr)");
+          path.setAttribute("fill", "none");
+          path.setAttribute("marker-end", "url(#arr)");
           svg.appendChild(path);
         }
       }
@@ -859,9 +1466,9 @@
         </div>
         <label>Nominal Speed (Hz)</label><input type="number" id="m-mach-speed" value="0" min="0" step="0.1">
         <label>Vibration Category</label>
-        <select id="m-mach-vib">${VIB_CATS.map(v=>`<option>${v}</option>`).join("")}</select>
+        <select id="m-mach-vib">${VIB_CATS.map(v => `<option>${v}</option>`).join("")}</select>
         <label>Operational Significance</label>
-        <select id="m-mach-op">${OP_SIGS.map(v=>`<option>${v}</option>`).join("")}</select>
+        <select id="m-mach-op">${OP_SIGS.map(v => `<option>${v}</option>`).join("")}</select>
         <div class="btn-row">
           <button class="btn-cancel" onclick="closeModal()">Cancel</button>
           <button class="btn-primary" onclick="submitAddMachine('${parentId}')">Add Machine</button>
@@ -886,7 +1493,7 @@
       const img = document.getElementById("mach-pin-img");
       const rect = img.getBoundingClientRect();
       const x = (e.clientX - rect.left) / rect.width;
-      const y = (e.clientY - rect.top)  / rect.height;
+      const y = (e.clientY - rect.top) / rect.height;
       if (x < 0 || x > 1 || y < 0 || y > 1) return;
       modalPins.push({ x, y });
       updatePinDisplay();
@@ -899,7 +1506,7 @@
         const dot = document.createElement("div");
         dot.className = "pin-dot";
         dot.style.left = (modalPins[i].x * 100) + "%";
-        dot.style.top  = (modalPins[i].y * 100) + "%";
+        dot.style.top = (modalPins[i].y * 100) + "%";
         dot.textContent = i + 1;
         wrap.appendChild(dot);
       }
@@ -914,7 +1521,7 @@
         data: {
           name, photo_b64: modalPhotoB64, pins: modalPins,
           nominal_speed: parseFloat(document.getElementById("m-mach-speed").value) || 0,
-          vib_category:  document.getElementById("m-mach-vib").value,
+          vib_category: document.getElementById("m-mach-vib").value,
           op_significance: document.getElementById("m-mach-op").value
         }
       });
@@ -939,9 +1546,9 @@
       let pinsHTML = "";
       for (let i = 0; i < pins.length; i++) {
         const isAssigned = assignedPins.has(i);
-        const cls     = isAssigned ? "pin-dot assigned" : "pin-dot selectable";
+        const cls = isAssigned ? "pin-dot assigned" : "pin-dot selectable";
         const onclick = isAssigned ? "" : `onclick="selectPointPin(${i}, event)"`;
-        pinsHTML += `<div class="${cls}" id="pt-pin-${i}" style="left:${pins[i].x*100}%;top:${pins[i].y*100}%" ${onclick}>${i+1}</div>`;
+        pinsHTML += `<div class="${cls}" id="pt-pin-${i}" style="left:${pins[i].x * 100}%;top:${pins[i].y * 100}%" ${onclick}>${i + 1}</div>`;
       }
       let photoSection = "";
       if (machine.photo_b64 && pins.length > 0) {
@@ -999,8 +1606,10 @@
       if (!name) return alert("Please enter a point name.");
       triggerAction({
         action: "add_point", parent_id: parentId,
-        data: { name, pin_index: modalSelectedPin, sensor_photo_b64: modalSensorB64,
-                sensor_name: document.getElementById("m-pt-sensor").value.trim() }
+        data: {
+          name, pin_index: modalSelectedPin, sensor_photo_b64: modalSensorB64,
+          sensor_name: document.getElementById("m-pt-sensor").value.trim()
+        }
       });
       closeModal();
     }
@@ -1009,9 +1618,9 @@
     function openEditModal(nodeId) {
       const node = diagData.nodes[nodeId]; if (!node) return;
       // Seed modal temp state from existing node
-      modalPins        = node.pins            ? JSON.parse(JSON.stringify(node.pins)) : [];
-      modalPhotoB64    = node.photo_b64       || "";
-      modalSensorB64   = node.sensor_photo_b64|| "";
+      modalPins = node.pins ? JSON.parse(JSON.stringify(node.pins)) : [];
+      modalPhotoB64 = node.photo_b64 || "";
+      modalSensorB64 = node.sensor_photo_b64 || "";
       modalSelectedPin = (node.pin_index !== undefined && node.pin_index >= 0) ? node.pin_index : -1;
 
       let fields = "";
@@ -1022,7 +1631,7 @@
       } else if (node.type === "plant") {
         fields = `
           <label>Plant Name</label><input type="text" id="m-edit-name" value="${escAttr(node.name)}">
-          <label>Location</label><input type="text" id="m-edit-location" value="${escAttr(node.location||'')}">`;
+          <label>Location</label><input type="text" id="m-edit-location" value="${escAttr(node.location || '')}">`;
 
       } else if (node.type === "zone") {
         fields = `<label>Zone/Area Name</label><input type="text" id="m-edit-name" value="${escAttr(node.name)}">`;
@@ -1036,14 +1645,14 @@
 
         let pinsHTML = "";
         for (let i = 0; i < modalPins.length; i++) {
-          pinsHTML += `<div class="pin-dot" style="left:${modalPins[i].x*100}%;top:${modalPins[i].y*100}%">${i+1}</div>`;
+          pinsHTML += `<div class="pin-dot" style="left:${modalPins[i].x * 100}%;top:${modalPins[i].y * 100}%">${i + 1}</div>`;
         }
 
         fields = `
           <label>Machine Name</label><input type="text" id="m-edit-name" value="${escAttr(node.name)}">
           <label>Machine Photo</label>
           <div class="photo-upload-area" id="mach-photo-area">${photoInner}</div>
-          <div id="mach-pin-section" style="display:${modalPhotoB64?'block':'none'};">
+          <div id="mach-pin-section" style="display:${modalPhotoB64 ? 'block' : 'none'};">
             <label>Click on photo to place/adjust measurement points</label>
             <div class="pin-canvas-wrap" id="mach-pin-wrap" onclick="handleEditMachPinClick(event)">
               <img id="mach-pin-img" src="${modalPhotoB64}">${pinsHTML}
@@ -1053,15 +1662,15 @@
               <span id="pin-count" style="font-size:12px;color:#64748b;line-height:34px;">${modalPins.length} pin(s) placed</span>
             </div>
           </div>
-          <label>Nominal Speed (Hz)</label><input type="number" id="m-edit-speed" value="${node.nominal_speed||0}" min="0" step="0.1">
+          <label>Nominal Speed (Hz)</label><input type="number" id="m-edit-speed" value="${node.nominal_speed || 0}" min="0" step="0.1">
           <label>Vibration Category</label>
-          <select id="m-edit-vib">${VIB_CATS.map(v=>`<option${v===node.vib_category?' selected':''}>${v}</option>`).join("")}</select>
+          <select id="m-edit-vib">${VIB_CATS.map(v => `<option${v === node.vib_category ? ' selected' : ''}>${v}</option>`).join("")}</select>
           <label>Operational Significance</label>
-          <select id="m-edit-op">${OP_SIGS.map(v=>`<option${v===node.op_significance?' selected':''}>${v}</option>`).join("")}</select>`;
+          <select id="m-edit-op">${OP_SIGS.map(v => `<option${v === node.op_significance ? ' selected' : ''}>${v}</option>`).join("")}</select>`;
 
       } else if (node.type === "point") {
         const machine = diagData.nodes[node.parent_id];
-        const pins    = machine ? (machine.pins || []) : [];
+        const pins = machine ? (machine.pins || []) : [];
         const assignedPins = new Set();
         if (machine) {
           for (const cid of (machine.children || [])) {
@@ -1074,11 +1683,11 @@
         if (machine && machine.photo_b64 && pins.length > 0) {
           let pinsHTML = "";
           for (let i = 0; i < pins.length; i++) {
-            const isAssigned  = assignedPins.has(i);
-            const isCurrent   = (i === node.pin_index);
+            const isAssigned = assignedPins.has(i);
+            const isCurrent = (i === node.pin_index);
             let cls = isCurrent ? "pin-dot selected" : (isAssigned ? "pin-dot assigned" : "pin-dot selectable");
             const oc = (isAssigned && !isCurrent) ? "" : `onclick="selectPointPin(${i}, event)"`;
-            pinsHTML += `<div class="${cls}" id="pt-pin-${i}" style="left:${pins[i].x*100}%;top:${pins[i].y*100}%" ${oc}>${i+1}</div>`;
+            pinsHTML += `<div class="${cls}" id="pt-pin-${i}" style="left:${pins[i].x * 100}%;top:${pins[i].y * 100}%" ${oc}>${i + 1}</div>`;
           }
           pinPickerHTML = `
             <label>Select which pin belongs to this point</label>
@@ -1086,7 +1695,7 @@
               <img src="${machine.photo_b64}" style="pointer-events:none;max-height:200px;display:block;">${pinsHTML}
             </div>
             <p id="selected-pin-text" style="font-size:12px;color:#64748b;margin-top:4px;">
-              ${node.pin_index >= 0 ? `Currently: Pin ${node.pin_index+1}` : "No pin selected"}
+              ${node.pin_index >= 0 ? `Currently: Pin ${node.pin_index + 1}` : "No pin selected"}
             </p>`;
         }
         const sensorInner = modalSensorB64
@@ -1100,7 +1709,7 @@
           <label>Sensor Photo (optional)</label>
           <div class="photo-upload-area" id="sensor-photo-area">${sensorInner}</div>
           <label>Sensor Technical Name</label>
-          <input type="text" id="m-edit-sensor" value="${escAttr(node.sensor_name||'')}">`;
+          <input type="text" id="m-edit-sensor" value="${escAttr(node.sensor_name || '')}">`;
       }
 
       showModal(`
@@ -1132,7 +1741,7 @@
       const img = document.getElementById("mach-pin-img");
       const rect = img.getBoundingClientRect();
       const x = (e.clientX - rect.left) / rect.width;
-      const y = (e.clientY - rect.top)  / rect.height;
+      const y = (e.clientY - rect.top) / rect.height;
       if (x < 0 || x > 1 || y < 0 || y > 1) return;
       modalPins.push({ x, y }); updatePinDisplay();
     }
@@ -1148,14 +1757,14 @@
         if (locEl) data.location = locEl.value.trim();
       }
       if (type === "machine") {
-        const spEl  = document.getElementById("m-edit-speed");
+        const spEl = document.getElementById("m-edit-speed");
         const vibEl = document.getElementById("m-edit-vib");
-        const opEl  = document.getElementById("m-edit-op");
-        if (spEl)  data.nominal_speed    = parseFloat(spEl.value) || 0;
-        if (vibEl) data.vib_category     = vibEl.value;
-        if (opEl)  data.op_significance  = opEl.value;
+        const opEl = document.getElementById("m-edit-op");
+        if (spEl) data.nominal_speed = parseFloat(spEl.value) || 0;
+        if (vibEl) data.vib_category = vibEl.value;
+        if (opEl) data.op_significance = opEl.value;
         data.photo_b64 = modalPhotoB64;
-        data.pins      = modalPins;
+        data.pins = modalPins;
       }
       if (type === "point") {
         const snEl = document.getElementById("m-edit-sensor");
@@ -1248,7 +1857,7 @@
       menu.className = "ctx-menu";
       menu.id = "ctx-main";
       menu.style.left = e.clientX + "px";
-      menu.style.top  = e.clientY + "px";
+      menu.style.top = e.clientY + "px";
 
       let clearItem = activeFilter
         ? `<div class="ctx-divider"></div>
@@ -1276,10 +1885,10 @@
       _miller1 = document.createElement("div");
       _miller1.className = "miller-panel";
       _miller1.style.left = (rect.right + 3) + "px";
-      _miller1.style.top  = rect.top + "px";
+      _miller1.style.top = rect.top + "px";
       let html = "";
       for (const co of companies) {
-        const hasPlants = (co.children||[]).some(id => nodes[id]?.type === "plant");
+        const hasPlants = (co.children || []).some(id => nodes[id]?.type === "plant");
         if (!hasPlants) continue;
         html += `<div class="miller-item" onmouseenter="openMillerPlantList(this, '${co.id}')">
           <span>${escHtml(co.name)}</span><span class="ctx-arrow">▶</span>
@@ -1293,16 +1902,16 @@
     function openMillerPlantList(btn, companyId) {
       if (_miller2) { _miller2.remove(); _miller2 = null; }
       const nodes = diagData.nodes || {};
-      const plants = ((nodes[companyId]?.children)||[]).map(id=>nodes[id]).filter(n=>n?.type==="plant");
+      const plants = ((nodes[companyId]?.children) || []).map(id => nodes[id]).filter(n => n?.type === "plant");
       const rect = btn.getBoundingClientRect();
       _miller2 = document.createElement("div");
       _miller2.className = "miller-panel";
       _miller2.style.left = (rect.right + 3) + "px";
-      _miller2.style.top  = rect.top + "px";
+      _miller2.style.top = rect.top + "px";
       let html = "";
       for (const p of plants) {
         const active = activeFilter?.type === "plant" && activeFilter?.plant_id === p.id;
-        html += `<div class="miller-item${active?' active':''}" onclick="applyPlantFilter('${p.id}')">
+        html += `<div class="miller-item${active ? ' active' : ''}" onclick="applyPlantFilter('${p.id}')">
           ${escHtml(p.name)}
         </div>`;
       }
@@ -1318,13 +1927,13 @@
       _miller1 = document.createElement("div");
       _miller1.className = "miller-panel";
       _miller1.style.left = (rect.right + 3) + "px";
-      _miller1.style.top  = rect.top + "px";
+      _miller1.style.top = rect.top + "px";
       let html = "";
       for (const [key, hex] of Object.entries(STATUS_COLORS)) {
         const active = activeFilter?.type === "condition" && activeFilter?.color === key;
-        html += `<div class="miller-color-row${active?' active':''}" onclick="applyConditionFilter('${key}')">
+        html += `<div class="miller-color-row${active ? ' active' : ''}" onclick="applyConditionFilter('${key}')">
           <div class="miller-color-dot" style="background:${hex}"></div>
-          <span>${STATUS_COLOR_NAMES[key]||key}</span>
+          <span>${STATUS_COLOR_NAMES[key] || key}</span>
         </div>`;
       }
       _miller1.innerHTML = html;
@@ -1348,32 +1957,32 @@
     function initMinimap() {
       const scroll = document.getElementById("chart-scroll");
       const canvas = document.getElementById("minimap-canvas");
-      const vp     = document.getElementById("minimap-vp");
+      const vp = document.getElementById("minimap-vp");
       if (!scroll || !canvas || !vp) return;
-      const ctx  = canvas.getContext("2d");
+      const ctx = canvas.getContext("2d");
       const mmBox = document.getElementById("minimap-box");
       const mmW = mmBox.offsetWidth, mmH = mmBox.offsetHeight;
       canvas.width = mmW; canvas.height = mmH;
 
       function updateMinimap() {
         const cW = scroll.scrollWidth, cH = scroll.scrollHeight;
-        const vW = scroll.clientWidth,  vH = scroll.clientHeight;
+        const vW = scroll.clientWidth, vH = scroll.clientHeight;
         const scale = Math.min(mmW / cW, mmH / cH);
         ctx.clearRect(0, 0, mmW, mmH);
         ctx.fillStyle = "#f5f5f5"; ctx.fillRect(0, 0, mmW, mmH);
         scroll.querySelectorAll(".node-card").forEach(card => {
-          const r  = card.getBoundingClientRect();
+          const r = card.getBoundingClientRect();
           const sr = scroll.getBoundingClientRect();
-          const x  = (r.left - sr.left + scroll.scrollLeft) * scale;
-          const y  = (r.top  - sr.top  + scroll.scrollTop)  * scale;
+          const x = (r.left - sr.left + scroll.scrollLeft) * scale;
+          const y = (r.top - sr.top + scroll.scrollTop) * scale;
           ctx.fillStyle = LEVEL_COLORS[card.dataset.type] || "#94a3b8";
           ctx.globalAlpha = 0.55;
-          ctx.fillRect(x, y, Math.max(r.width*scale, 3), Math.max(r.height*scale, 2));
+          ctx.fillRect(x, y, Math.max(r.width * scale, 3), Math.max(r.height * scale, 2));
           ctx.globalAlpha = 1;
         });
-        vp.style.left   = (scroll.scrollLeft * scale) + "px";
-        vp.style.top    = (scroll.scrollTop  * scale) + "px";
-        vp.style.width  = Math.min(vW * scale, mmW) + "px";
+        vp.style.left = (scroll.scrollLeft * scale) + "px";
+        vp.style.top = (scroll.scrollTop * scale) + "px";
+        vp.style.width = Math.min(vW * scale, mmW) + "px";
         vp.style.height = Math.min(vH * scale, mmH) + "px";
       }
       scroll.addEventListener("scroll", updateMinimap);
@@ -1388,7 +1997,7 @@
         if (!dragging) return;
         const scale = Math.min(mmW / scroll.scrollWidth, mmH / scroll.scrollHeight);
         scroll.scrollLeft = ssl + (e.clientX - dsx) / scale;
-        scroll.scrollTop  = sst + (e.clientY - dsy) / scale;
+        scroll.scrollTop = sst + (e.clientY - dsy) / scale;
       });
       document.addEventListener("mouseup", () => { dragging = false; });
     }
@@ -1406,15 +2015,15 @@
         else bcHTML += `<span class="current">${escHtml(b.name)}</span>`;
       }
       const tabs = [
-        { id: "trend",          label: "Trend" },
-        { id: "time_waveform",  label: "Time Waveform" },
-        { id: "spectrum",       label: "Spectrum" },
-        { id: "avg_spectrum",   label: "Average Spectrum" },
+        { id: "trend", label: "Trend" },
+        { id: "time_waveform", label: "Time Waveform" },
+        { id: "spectrum", label: "Spectrum" },
+        { id: "avg_spectrum", label: "Average Spectrum" },
         { id: "demod_spectrum", label: "Demod Spectrum" },
-        { id: "impact_demod",   label: "Impact Demodulation" }
+        { id: "impact_demod", label: "Impact Demodulation" }
       ];
       const tabsHTML = tabs.map(t =>
-        `<button class="tab-btn${activeTab===t.id?' active':''}" onclick="switchTab('${t.id}')">${t.label}</button>`
+        `<button class="tab-btn${activeTab === t.id ? ' active' : ''}" onclick="switchTab('${t.id}')">${t.label}</button>`
       ).join("");
 
       const readings = pointData.readings || {};
@@ -1440,21 +2049,21 @@
         if (chartType === "time_waveform" && data.time_waveform?.length > 0) {
           const rms = computeRMS(data.time_waveform);
           const peak = Math.max(...data.time_waveform.map(Math.abs));
-          const p2p  = Math.max(...data.time_waveform) - Math.min(...data.time_waveform);
+          const p2p = Math.max(...data.time_waveform) - Math.min(...data.time_waveform);
           const crest = peak / (rms || 1);
           html += `<div class="axis-section">
             <div class="axis-label">${escHtml(axis)} — G</div>
             <div class="axis-stats">RMS: ${rms.toFixed(3)} G &nbsp;|&nbsp; Peak: ${peak.toFixed(3)} G &nbsp;|&nbsp; P2P: ${p2p.toFixed(3)} G &nbsp;|&nbsp; Crest: ${crest.toFixed(3)}</div>
-            <div id="chart-tw-${axis.replace(/\s/g,'_')}" style="width:100%;height:280px;"></div>
+            <div id="chart-tw-${axis.replace(/\s/g, '_')}" style="width:100%;height:280px;"></div>
           </div>`;
         } else if (chartType === "spectrum" && data.spectrum_freq?.length > 0) {
           html += `<div class="axis-section">
             <div class="axis-label">${escHtml(axis)} — Spectrum</div>
-            <div id="chart-sp-${axis.replace(/\s/g,'_')}" style="width:100%;height:280px;"></div>
+            <div id="chart-sp-${axis.replace(/\s/g, '_')}" style="width:100%;height:280px;"></div>
           </div>`;
         }
       }
-      ["H Axis","V Axis","A Axis"].forEach(ax => {
+      ["H Axis", "V Axis", "A Axis"].forEach(ax => {
         if (!axes.includes(ax))
           html += `<div class="axis-section"><div class="axis-label">${ax}</div>
             <div class="coming-soon" style="padding:20px;">🚧 No reading for this axis yet</div></div>`;
@@ -1476,22 +2085,26 @@
       if (!pointData) return;
       const readings = pointData.readings || {};
       for (const [axis, data] of Object.entries(readings)) {
-        const sa = axis.replace(/\s/g,'_');
+        const sa = axis.replace(/\s/g, '_');
         if (activeTab === "time_waveform" && data.time_waveform?.length > 0) {
-          const sr   = data.sr || 2560;
-          const tArr = data.time_waveform.map((_,i) => (i/sr)*1000);
-          const el   = document.getElementById(`chart-tw-${sa}`);
+          const sr = data.sr || 2560;
+          const tArr = data.time_waveform.map((_, i) => (i / sr) * 1000);
+          const el = document.getElementById(`chart-tw-${sa}`);
           if (el && typeof Plotly !== 'undefined') Plotly.newPlot(el,
-            [{x:tArr,y:data.time_waveform,type:'scatter',mode:'lines',line:{color:'#3b82f6',width:1}}],
-            {xaxis:{title:'Time (ms)'},yaxis:{title:'G'},margin:{l:50,r:20,t:10,b:40},
-             paper_bgcolor:'transparent',plot_bgcolor:'#f8fafc'},{responsive:true});
+            [{ x: tArr, y: data.time_waveform, type: 'scatter', mode: 'lines', line: { color: '#3b82f6', width: 1 } }],
+            {
+              xaxis: { title: 'Time (ms)' }, yaxis: { title: 'G' }, margin: { l: 50, r: 20, t: 10, b: 40 },
+              paper_bgcolor: 'transparent', plot_bgcolor: '#f8fafc'
+            }, { responsive: true });
         }
         if (activeTab === "spectrum" && data.spectrum_freq?.length > 0) {
           const el = document.getElementById(`chart-sp-${sa}`);
           if (el && typeof Plotly !== 'undefined') Plotly.newPlot(el,
-            [{x:data.spectrum_freq,y:data.spectrum_amp,type:'scatter',mode:'lines',line:{color:'#3b82f6',width:1}}],
-            {xaxis:{title:'Frequency (Hz)'},yaxis:{title:'Amplitude (g)'},margin:{l:50,r:20,t:10,b:40},
-             paper_bgcolor:'transparent',plot_bgcolor:'#f8fafc'},{responsive:true});
+            [{ x: data.spectrum_freq, y: data.spectrum_amp, type: 'scatter', mode: 'lines', line: { color: '#3b82f6', width: 1 } }],
+            {
+              xaxis: { title: 'Frequency (Hz)' }, yaxis: { title: 'Amplitude (g)' }, margin: { l: 50, r: 20, t: 10, b: 40 },
+              paper_bgcolor: 'transparent', plot_bgcolor: '#f8fafc'
+            }, { responsive: true });
         }
       }
     }
@@ -1499,15 +2112,16 @@
     function computeRMS(arr) {
       if (!arr || arr.length === 0) return 0;
       let sum = 0;
-      for (let i = 0; i < arr.length; i++) sum += arr[i]*arr[i];
+      for (let i = 0; i < arr.length; i++) sum += arr[i] * arr[i];
       return Math.sqrt(sum / arr.length);
     }
 
     // ===================================================================
     // UTILITIES
     // ===================================================================
-    function escHtml(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
-    function escAttr(s) { return String(s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/'/g,"&#39;"); }
+    function escHtml(s) { return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+    function escAttr(s) { return String(s || "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
   </script>
 </body>
+
 </html>
